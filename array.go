@@ -42,7 +42,7 @@ func (st symtab) makeArrayCodec(namespace string, schema interface{}) (*codec, e
 				}
 				for i := int64(0); i < blockCount; i++ {
 					if value, buf, err = valuesCodec.decoder(buf); err != nil {
-						return nil, buf, fmt.Errorf("cannot decode array: cannot decode item: %i; %s", i, err)
+						return nil, buf, fmt.Errorf("cannot decode array: cannot decode item: %d; %s", i, err)
 					}
 					dataArray = append(dataArray, value)
 				}
