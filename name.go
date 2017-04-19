@@ -4,6 +4,7 @@ import (
 	"strings"
 )
 
+// ErrInvalidName is the error returned when one or more parts of an Avro name is invalid.
 type ErrInvalidName struct {
 	Message string
 }
@@ -43,10 +44,13 @@ func checkNameComponent(s string) error {
 	return nil
 }
 
+// Name describes an Avro name in terms of its brief name, namespace, and full name.
 type Name struct {
 	Name, Namespace, FullName string
 }
 
+// NewName returns a new Name instance after first ensuring the arguments do not violate any of the
+// Avro naming rules.
 func NewName(name, namespace string, enclosing *Name) (*Name, error) {
 	n := &Name{
 		Name:      name,
@@ -91,8 +95,10 @@ func NewName(name, namespace string, enclosing *Name) (*Name, error) {
 	return n, nil
 }
 
-func (n1 Name) Equal(n2 Name) bool {
-	return n1.FullName == n2.FullName
+// Equal returns true when two Name instances refer to the same Avro name; otherwise it returns
+// false.
+func (n Name) Equal(other Name) bool {
+	return n.FullName == other.FullName
 }
 
 func (n Name) String() string {
