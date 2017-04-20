@@ -44,51 +44,44 @@ func checkNameComponent(s string) error {
 	return nil
 }
 
-// Name describes an Avro name in terms of its brief name, namespace, and full name.
+// Name describes an Avro name in terms of its full name and namespace.
 type Name struct {
-	Name, Namespace, FullName string
+	FullName  string // the instance's Avro name
+	Namespace string // for use when building new name from existing one
 }
 
 // NewName returns a new Name instance after first ensuring the arguments do not violate any of the
 // Avro naming rules.
-func NewName(name, namespace string, enclosing *Name) (*Name, error) {
-	n := &Name{
-		Name:      name,
-		Namespace: namespace,
-		FullName:  namespace + "." + name,
-	}
+func NewName(name, namespace, enclosingNamespace string) (Name, error) {
+	var n Name
 
-	// when name contains dot, ignore namespace parameter (and enclosing namespace?)
-	switch index := strings.LastIndexByte(name, '.'); index {
-	case -1:
-		if namespace != "" {
-			n.FullName = namespace + "." + name
-			n.Namespace = namespace
-			n.Name = name
-		} else if enclosing != nil {
-			n.FullName = enclosing.Namespace + "." + name
-			n.Namespace = enclosing.Namespace
-			n.Name = name
-		} else {
-			n.FullName = name
-			n.Namespace = namespace
-			n.Name = name
-		}
-	default:
-		// name contains dot, so ignore everything else and use it as the full name
+	if index := strings.LastIndexByte(name, '.'); index > -1 {
+		// inputName does contain a dot, so ignore everything else and use it as the full name
 		n.FullName = name
 		n.Namespace = name[:index]
-		n.Name = name[index+1:]
+	} else {
+		// inputName does not contain a dot, therefore is not the full name
+		if namespace != "" {
+			// if namespace provided in the schema in the same schema level, use it
+			n.FullName = namespace + "." + name
+			n.Namespace = namespace
+		} else if enclosingNamespace != "" {
+			// otherwise if enclosing namespace provided, use it
+			n.FullName = enclosingNamespace + "." + name
+			n.Namespace = enclosingNamespace
+		} else {
+			// otherwise no namespace, so use null namespace, the empty string
+			n.FullName = name
+		}
 	}
 
-	if err := checkNameComponent(n.Name); err != nil {
-		return nil, err
-	}
-	if namespace != "" {
-		for _, component := range strings.Split(n.Namespace, ".") {
-			if err := checkNameComponent(component); err != nil {
-				return nil, err
-			}
+	// verify all components of the full name for adherence to Avro naming rules
+	for _, component := range strings.Split(n.FullName, ".") {
+		if err := checkNameComponent(component); err != nil {
+			// clear out the field members to prevent use of invalid name data
+			n.FullName = ""
+			n.Namespace = ""
+			return n, err
 		}
 	}
 
@@ -97,8 +90,8 @@ func NewName(name, namespace string, enclosing *Name) (*Name, error) {
 
 // Equal returns true when two Name instances refer to the same Avro name; otherwise it returns
 // false.
-func (n Name) Equal(other Name) bool {
-	return n.FullName == other.FullName
+func (n Name) Equal(n2 Name) bool {
+	return n.FullName == n2.FullName
 }
 
 func (n Name) String() string {

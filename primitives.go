@@ -43,7 +43,7 @@ func bytesDecoder(buf []byte) (interface{}, []byte, error) {
 	if decoded, buf, err = longDecoder(buf); err != nil {
 		return nil, buf, fmt.Errorf("cannot decode bytes: %s", err)
 	}
-	size := decoded.(int64)
+	size := decoded.(int64) // longDecoder always returns int64
 	if size < 0 {
 		return nil, buf, fmt.Errorf("cannot decode bytes: negative length: %d", size)
 	}
@@ -53,6 +53,7 @@ func bytesDecoder(buf []byte) (interface{}, []byte, error) {
 	return buf[:size], buf[size:], nil
 }
 
+// receives string and []byte transparently
 func bytesEncoder(buf []byte, datum interface{}) ([]byte, error) {
 	var value []byte
 	switch v := datum.(type) {
@@ -65,6 +66,7 @@ func bytesEncoder(buf []byte, datum interface{}) ([]byte, error) {
 	}
 	// longEncoder only fails when given non int, so elide error checking
 	buf, _ = longEncoder(buf, len(value))
+	// append datum bytes
 	return append(buf, value...), nil
 }
 
@@ -85,6 +87,8 @@ func doubleDecoder(buf []byte) (interface{}, []byte, error) {
 	return math.Float64frombits(binary.LittleEndian.Uint64(buf[:doubleEncodedLength])), buf[doubleEncodedLength:], nil
 }
 
+// receives any Go numeric type and casts to float64, possibly with data loss if the value the
+// client sent is not represented in a float64.
 func doubleEncoder(buf []byte, datum interface{}) ([]byte, error) {
 	var value float64
 	switch v := datum.(type) {
@@ -113,6 +117,8 @@ func floatDecoder(buf []byte) (interface{}, []byte, error) {
 	return math.Float32frombits(binary.LittleEndian.Uint32(buf[:floatEncodedLength])), buf[floatEncodedLength:], nil
 }
 
+// receives any Go numeric type and casts to float32, possibly with data loss if the value the
+// client sent is not represented in a float32.
 func floatEncoder(buf []byte, datum interface{}) ([]byte, error) {
 	var value float32
 	switch v := datum.(type) {
@@ -168,6 +174,8 @@ func intDecoder(buf []byte) (interface{}, []byte, error) {
 	return nil, nil, fmt.Errorf("cannot decode int: buffer underflow")
 }
 
+// receives any Go numeric type and casts to int32, possibly with data loss if the value the client
+// sent is not represented in a int32.
 func intEncoder(buf []byte, datum interface{}) ([]byte, error) {
 	var value int32
 	switch v := datum.(type) {
@@ -203,6 +211,8 @@ func longDecoder(buf []byte) (interface{}, []byte, error) {
 	return nil, nil, fmt.Errorf("cannot decode long: buffer underflow")
 }
 
+// receives any Go numeric type and casts to int64, possibly with data loss if the value the client
+// sent is not represented in a int64.
 func longEncoder(buf []byte, datum interface{}) ([]byte, error) {
 	var value int64
 	switch v := datum.(type) {
@@ -241,7 +251,7 @@ func stringDecoder(buf []byte) (interface{}, []byte, error) {
 	if decoded, buf, err = longDecoder(buf); err != nil {
 		return nil, buf, err
 	}
-	size := decoded.(int64)
+	size := decoded.(int64) // longDecoder always returns int64
 	if size < 0 {
 		return nil, buf, fmt.Errorf("cannot decode string: negative length: %d", size)
 	}
@@ -251,6 +261,7 @@ func stringDecoder(buf []byte) (interface{}, []byte, error) {
 	return string(buf[:size]), buf[size:], nil
 }
 
+// receives string and []byte transparently
 func stringEncoder(buf []byte, datum interface{}) ([]byte, error) {
 	var value []byte
 	switch v := datum.(type) {
@@ -261,8 +272,8 @@ func stringEncoder(buf []byte, datum interface{}) ([]byte, error) {
 	default:
 		return buf, fmt.Errorf("cannot encode string: received: %T", v)
 	}
-
 	// longEncoder only fails when given non int, so elide error checking
 	buf, _ = longEncoder(buf, len(value))
+	// append datum bytes
 	return append(buf, value...), nil
 }

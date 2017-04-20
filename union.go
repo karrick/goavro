@@ -11,7 +11,7 @@ type unionEncoder struct {
 	index   int64
 }
 
-func (st symtab) buildCodecForTypeDescribedBySlice(namespace string, schemaArray []interface{}) (*codec, error) {
+func (st symtab) buildCodecForTypeDescribedBySlice(enclosingNamespace string, schemaArray []interface{}) (*codec, error) {
 	if len(schemaArray) == 0 {
 		return nil, errors.New("cannot create union codec without any members")
 	}
@@ -21,10 +21,10 @@ func (st symtab) buildCodecForTypeDescribedBySlice(namespace string, schemaArray
 	allowedNames := make([]string, len(schemaArray))
 
 	for i, unionMemberSchema := range schemaArray {
-		unionMemberCodec, err := st.buildCodec(namespace, unionMemberSchema)
+		unionMemberCodec, err := st.buildCodec(enclosingNamespace, unionMemberSchema)
 		if err != nil {
-			// TODO: error message needs more surrounding context of where we are
-			return nil, fmt.Errorf("cannot create union codec: item %d; %s", i, err)
+			// TODO: error message needs more surrounding context of where we are in schema
+			return nil, fmt.Errorf("cannot create union codec for item: %d; %s", i, err)
 		}
 
 		decoderFromIndex[i] = unionMemberCodec.decoder
@@ -40,11 +40,12 @@ func (st symtab) buildCodecForTypeDescribedBySlice(namespace string, schemaArray
 		decoder: func(buf []byte) (interface{}, []byte, error) {
 			var decoded interface{}
 			var err error
+
 			decoded, buf, err = longDecoder(buf)
 			if err != nil {
 				return nil, buf, err
 			}
-			index := decoded.(int64)
+			index := decoded.(int64) // longDecoder always returns int64, so elide error checking
 			if index < 0 || index >= int64(len(decoderFromIndex)) {
 				return nil, buf, fmt.Errorf("cannot decode union: index must be between 0 and %d: read index: %d", len(decoderFromIndex)-1, index)
 			}
@@ -52,10 +53,16 @@ func (st symtab) buildCodecForTypeDescribedBySlice(namespace string, schemaArray
 		},
 		encoder: func(buf []byte, datum interface{}) ([]byte, error) {
 			var err error
+			var candidate string
 			var candidates []string
 			var ue unionEncoder
 			var ok bool
 
+			// NOTE: To allow greater client flexibility, when we receive a particular Go native
+			// data type, there are a few possible candidate types that can encode the native type.
+			// In these cases, we check whether the union supports any of the listed candidates, and
+			// use that encoder if so.  For instance, if we receive a Go `int` native type, its
+			// value could be encoded as an Avro int, long, float, or double.
 			switch datum.(type) {
 			case nil:
 				candidates = []string{"null"}
@@ -78,16 +85,15 @@ func (st symtab) buildCodecForTypeDescribedBySlice(namespace string, schemaArray
 			case []interface{}:
 				candidates = []string{"array (FIXME)"}
 			default:
-				// NOTE: If given any sort of slice, zip values to items
-				v := reflect.ValueOf(datum)
-				if v.Kind() != reflect.Slice {
+				// NOTE: If given any sort of slice, zip values to items as convenience to client.
+				if v := reflect.ValueOf(datum); v.Kind() != reflect.Slice {
 					return buf, fmt.Errorf("cannot encode union: received: %T", datum)
 				}
 				candidates = []string{"array (FIXME)"}
 			}
 
-			// pick first candidate that matches
-			for _, candidate := range candidates {
+			// pick first candidate that matches possible candidate list
+			for _, candidate = range candidates {
 				if ue, ok = encoderFromName[candidate]; ok {
 					break
 				}
@@ -95,10 +101,11 @@ func (st symtab) buildCodecForTypeDescribedBySlice(namespace string, schemaArray
 			if !ok {
 				return buf, fmt.Errorf("cannot encode union: acceptable: %v; received: %T", candidates, datum)
 			}
-
+			// encode union member index
 			buf, _ = longEncoder(buf, ue.index)
+			// encode datum value
 			if buf, err = ue.encoder(buf, datum); err != nil {
-				return buf, fmt.Errorf("cannot encode union: %s", err)
+				return buf, fmt.Errorf("cannot encode union value as Avro type: %q; %s", candidate, err)
 			}
 			return buf, nil
 		},
