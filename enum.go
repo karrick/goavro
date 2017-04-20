@@ -4,6 +4,8 @@ import (
 	"fmt"
 )
 
+// enum does not have child objects, therefore whatever namespace it defines is just to store its
+// name in the symbol table.
 func (st symtab) makeEnumCodec(enclosingNamespace string, schema interface{}) (*codec, error) {
 	schemaMap, ok := schema.(map[string]interface{})
 	if !ok {
@@ -24,11 +26,14 @@ func (st symtab) makeEnumCodec(enclosingNamespace string, schema interface{}) (*
 		if !ok {
 			return nil, fmt.Errorf("cannot create enum codec: symbol ought to be string; received: %T", symbol)
 		}
+		if err := checkNameComponent(symbol); err != nil {
+			return nil, fmt.Errorf("cannot create enum codec: invalid symbol name: %s", err)
+		}
 		symbols[i] = symbol
 	}
 
-	return &codec{
-		name: "enum (FIXME)",
+	codec := &codec{
+		// name: "enum",
 		decoder: func(buf []byte) (interface{}, []byte, error) {
 			var value interface{}
 			var err error
@@ -55,5 +60,32 @@ func (st symtab) makeEnumCodec(enclosingNamespace string, schema interface{}) (*
 			}
 			return buf, fmt.Errorf("cannot encode enum: string not member of enum symbols: %s", someString)
 		},
-	}, nil
+	}
+
+	// name support
+	var name, namespace string
+	if value, ok := schemaMap["name"]; ok {
+		name, ok = value.(string)
+		if !ok {
+			return nil, fmt.Errorf("cannot create enum codec: name ought to be string; received: %T", value)
+		}
+	}
+	if value, ok := schemaMap["namespace"]; ok {
+		namespace, ok = value.(string)
+		if !ok {
+			return nil, fmt.Errorf("cannot create enum codec: namespace ought to be string; received: %T", value)
+		}
+	}
+	if name != "" {
+		// if name is defined, then register with symbol table
+		n, err := NewName(name, namespace, enclosingNamespace)
+		if err != nil {
+			return nil, fmt.Errorf("cannot create enum codec: %s", err)
+		}
+		// fmt.Printf("DEBUG: n: %#v\n", n)
+		codec.name = n.FullName
+		st.cache[n.FullName] = codec
+	}
+
+	return codec, nil
 }
