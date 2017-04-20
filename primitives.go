@@ -25,7 +25,7 @@ func booleanDecoder(buf []byte) (interface{}, []byte, error) {
 func booleanEncoder(buf []byte, datum interface{}) ([]byte, error) {
 	value, ok := datum.(bool)
 	if !ok {
-		return buf, fmt.Errorf("cannot encode boolean: received: %T", datum)
+		return buf, fmt.Errorf("cannot encode boolean: expected: Go bool; received: %T", datum)
 	}
 	var b byte
 	if value {
@@ -62,7 +62,7 @@ func bytesEncoder(buf []byte, datum interface{}) ([]byte, error) {
 	case string:
 		value = []byte(v)
 	default:
-		return buf, fmt.Errorf("cannot encode bytes: received: %T", v)
+		return buf, fmt.Errorf("cannot encode bytes: expected: Go string, []byte; received: %T", v)
 	}
 	// longEncoder only fails when given non int, so elide error checking
 	buf, _ = longEncoder(buf, len(value))
@@ -97,13 +97,22 @@ func doubleEncoder(buf []byte, datum interface{}) ([]byte, error) {
 	case float32:
 		value = float64(v)
 	case int:
+		if int(float64(v)) != v {
+			return buf, fmt.Errorf("cannot encode Go int as Avro double without losing precision: %d", v)
+		}
 		value = float64(v)
 	case int64:
+		if int64(float64(v)) != v {
+			return buf, fmt.Errorf("cannot encode Go int64 as Avro double without losing precision: %d", v)
+		}
 		value = float64(v)
 	case int32:
+		if int32(float64(v)) != v {
+			return buf, fmt.Errorf("cannot encode Go int32 as Avro double without losing precision: %d", v)
+		}
 		value = float64(v)
 	default:
-		return buf, fmt.Errorf("cannot encode double: received %T", datum)
+		return buf, fmt.Errorf("cannot encode double: expected: Go numeric; received %T", datum)
 	}
 	return appendFloat(buf, uint64(math.Float64bits(value)), doubleEncodedLength)
 }
@@ -117,23 +126,36 @@ func floatDecoder(buf []byte) (interface{}, []byte, error) {
 	return math.Float32frombits(binary.LittleEndian.Uint32(buf[:floatEncodedLength])), buf[floatEncodedLength:], nil
 }
 
-// receives any Go numeric type and casts to float32, possibly with data loss if the value the
-// client sent is not represented in a float32.
+// receives any Go numeric type and casts to float32.  if cast is lossy, it returns an encoding
+// error
 func floatEncoder(buf []byte, datum interface{}) ([]byte, error) {
 	var value float32
 	switch v := datum.(type) {
 	case float32:
 		value = v
 	case float64:
+		// Assume runtime can cast special floats correctly
+		if !math.IsNaN(v) && !math.IsInf(v, 1) && !math.IsInf(v, -1) && float64(float32(v)) != v {
+			return buf, fmt.Errorf("cannot encode Go double as Avro float without losing precision: %f", v)
+		}
 		value = float32(v)
 	case int:
+		if int(float32(v)) != v {
+			return buf, fmt.Errorf("cannot encode Go int as Avro float without losing precision: %d", v)
+		}
 		value = float32(v)
 	case int64:
+		if int64(float32(v)) != v {
+			return buf, fmt.Errorf("cannot encode Go int64 as Avro float without losing precision: %d", v)
+		}
 		value = float32(v)
 	case int32:
+		if int32(float32(v)) != v {
+			return buf, fmt.Errorf("cannot encode Go int32 as Avro float without losing precision: %d", v)
+		}
 		value = float32(v)
 	default:
-		return buf, fmt.Errorf("cannot encode float: received %T", datum)
+		return buf, fmt.Errorf("cannot encode float: expected: Go numeric; received %T", datum)
 	}
 	return appendFloat(buf, uint64(math.Float32bits(value)), floatEncodedLength)
 }
@@ -180,17 +202,29 @@ func intEncoder(buf []byte, datum interface{}) ([]byte, error) {
 	var value int32
 	switch v := datum.(type) {
 	case int:
+		if int(int32(v)) != v {
+			return buf, fmt.Errorf("cannot encode Go int as Avro int without losing precision: %d", v)
+		}
 		value = int32(v)
 	case int64:
+		if int64(int32(v)) != v {
+			return buf, fmt.Errorf("cannot encode Go int64 as Avro int without losing precision: %d", v)
+		}
 		value = int32(v)
 	case int32:
 		value = v
 	case float64:
+		if float64(int32(v)) != v {
+			return buf, fmt.Errorf("cannot encode Go float64 as Avro int without losing precision: %f", v)
+		}
 		value = int32(v)
 	case float32:
+		if float32(int32(v)) != v {
+			return buf, fmt.Errorf("cannot encode Go float32 as Avro int without losing precision: %f", v)
+		}
 		value = int32(v)
 	default:
-		return buf, fmt.Errorf("cannot encode long: received: %T", datum)
+		return buf, fmt.Errorf("cannot encode long: expected: Go numeric; received: %T", datum)
 	}
 	encoded := uint64((uint32(value) << 1) ^ uint32(value>>intDownShift))
 	return appendInt(buf, encoded)
@@ -223,11 +257,17 @@ func longEncoder(buf []byte, datum interface{}) ([]byte, error) {
 	case int32:
 		value = int64(v)
 	case float64:
+		if float64(int64(v)) != v {
+			return buf, fmt.Errorf("cannot encode Go float64 as Avro long without losing precision: %f", v)
+		}
 		value = int64(v)
 	case float32:
+		if float32(int64(v)) != v {
+			return buf, fmt.Errorf("cannot encode Go float64 as Avro long without losing precision: %f", v)
+		}
 		value = int64(v)
 	default:
-		return buf, fmt.Errorf("cannot encode long: received: %T", datum)
+		return buf, fmt.Errorf("cannot encode long: expected: Go numeric; received: %T", datum)
 	}
 	encoded := (uint64(value) << 1) ^ uint64(value>>longDownShift)
 	return appendInt(buf, encoded)
@@ -237,7 +277,7 @@ func nullDecoder(buf []byte) (interface{}, []byte, error) { return nil, buf, nil
 
 func nullEncoder(buf []byte, datum interface{}) ([]byte, error) {
 	if datum != nil {
-		return buf, fmt.Errorf("cannot encode null: received: %T", datum)
+		return buf, fmt.Errorf("cannot encode null: expected Go nil; received: %T", datum)
 	}
 	return buf, nil
 }
@@ -270,7 +310,7 @@ func stringEncoder(buf []byte, datum interface{}) ([]byte, error) {
 	case []byte:
 		value = v
 	default:
-		return buf, fmt.Errorf("cannot encode string: received: %T", v)
+		return buf, fmt.Errorf("cannot encode string: expected Go string, []byte; received: %T", v)
 	}
 	// longEncoder only fails when given non int, so elide error checking
 	buf, _ = longEncoder(buf, len(value))
