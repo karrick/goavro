@@ -15,30 +15,34 @@ type Encoder interface {
 	Encode([]byte, interface{}) ([]byte, error)
 }
 
-// Codec interface describes types that expose both the Decode and the Encode methods.
-type Codec interface {
+// Coder interface describes types that expose both the Decode and the Encode methods.
+type Coder interface {
 	Decoder
 	Encoder
 }
 
-type codec struct {
+// Codec stores function pointers for encoding and decoding Avro blobs according to their defined
+// specification.  Their state is created during initialization, but then never modified, so the
+// same Codec may be safely used in multiple go routines to encode and or decode different Avro
+// streams concurrently.
+type Codec struct {
 	name    string
 	decoder func([]byte) (interface{}, []byte, error)
 	encoder func([]byte, interface{}) ([]byte, error)
 }
 
 // NewCodec returns a Codec that can encode and decode the specified schema.
-func NewCodec(schemaSpecification string) (Codec, error) {
+func NewCodec(schemaSpecification string) (*Codec, error) {
 	// pre-load the cache with primitive types
-	st := &symtab{cache: map[string]*codec{
-		"boolean": &codec{name: "boolean", decoder: booleanDecoder, encoder: booleanEncoder},
-		"bytes":   &codec{name: "bytes", decoder: bytesDecoder, encoder: bytesEncoder},
-		"double":  &codec{name: "double", decoder: doubleDecoder, encoder: doubleEncoder},
-		"float":   &codec{name: "float", decoder: floatDecoder, encoder: floatEncoder},
-		"int":     &codec{name: "int", decoder: intDecoder, encoder: intEncoder},
-		"long":    &codec{name: "long", decoder: longDecoder, encoder: longEncoder},
-		"null":    &codec{name: "null", decoder: nullDecoder, encoder: nullEncoder},
-		"string":  &codec{name: "string", decoder: stringDecoder, encoder: stringEncoder},
+	st := &symtab{cache: map[string]*Codec{
+		"boolean": &Codec{name: "boolean", decoder: booleanDecoder, encoder: booleanEncoder},
+		"bytes":   &Codec{name: "bytes", decoder: bytesDecoder, encoder: bytesEncoder},
+		"double":  &Codec{name: "double", decoder: doubleDecoder, encoder: doubleEncoder},
+		"float":   &Codec{name: "float", decoder: floatDecoder, encoder: floatEncoder},
+		"int":     &Codec{name: "int", decoder: intDecoder, encoder: intEncoder},
+		"long":    &Codec{name: "long", decoder: longDecoder, encoder: longEncoder},
+		"null":    &Codec{name: "null", decoder: nullDecoder, encoder: nullEncoder},
+		"string":  &Codec{name: "string", decoder: stringDecoder, encoder: stringEncoder},
 	}}
 
 	// NOTE: Some clients will give us unadorned primitive type name for the schema, e.g., "long".
@@ -58,21 +62,37 @@ func NewCodec(schemaSpecification string) (Codec, error) {
 	return codec, err
 }
 
-func (cd codec) Decode(buf []byte) (interface{}, []byte, error) {
-	return cd.decoder(buf)
+// Decode decodes the provided byte slice in accordance with the Codec's Avro schema.  On success,
+// it returns the decoded value, along with a new byte slice with the decoded bytes consumed.  In
+// other words, when decoding an Avro int that happens to take 3 bytes, the returned byte slice will
+// be like the original byte slice, but with the first three bytes removed.  On error, it returns
+// the original byte slice without any bytes consumed and the error.
+func (cd Codec) Decode(buf []byte) (interface{}, []byte, error) {
+	value, newBuf, err := cd.decoder(buf)
+	if err != nil {
+		return nil, buf, err
+	}
+	return value, newBuf, nil
 }
 
-func (cd codec) Encode(buf []byte, datum interface{}) ([]byte, error) {
-	return cd.encoder(buf, datum)
+// Encode encodes the provided datum value in accordance with the Codec's Avro schema.  It takes a
+// byte slice to which to append the encoded bytes.  On success, it returns the new byte slice with
+// the appended byte slice.  On error, it returns the original byte slice without any encoded bytes.
+func (cd Codec) Encode(buf []byte, datum interface{}) ([]byte, error) {
+	newBuf, err := cd.encoder(buf, datum)
+	if err != nil {
+		return buf, err
+	}
+	return newBuf, nil
 }
 
 // symtab represents a set of Avro full names to the codec that processes that schema type.
 type symtab struct {
-	cache map[string]*codec
+	cache map[string]*Codec
 }
 
 // convert a schema data structure to a codec, prefixing with specified namespace
-func (st symtab) buildCodec(enclosingNamespace string, schema interface{}) (*codec, error) {
+func (st symtab) buildCodec(enclosingNamespace string, schema interface{}) (*Codec, error) {
 	switch schemaType := schema.(type) {
 	case map[string]interface{}:
 		return st.buildCodecForTypeDescribedByMap(enclosingNamespace, schemaType)
@@ -86,7 +106,7 @@ func (st symtab) buildCodec(enclosingNamespace string, schema interface{}) (*cod
 }
 
 // Reach into the map, grabbing its "type".  Use that to create the codec.
-func (st symtab) buildCodecForTypeDescribedByMap(enclosingNamespace string, schemaMap map[string]interface{}) (*codec, error) {
+func (st symtab) buildCodecForTypeDescribedByMap(enclosingNamespace string, schemaMap map[string]interface{}) (*Codec, error) {
 	// INPUT: {"type":"boolean", ...}
 
 	t, ok := schemaMap["type"]
@@ -109,7 +129,7 @@ func (st symtab) buildCodecForTypeDescribedByMap(enclosingNamespace string, sche
 	}
 }
 
-func (st symtab) buildCodecForTypeDescribedByString(enclosingNamespace string, schemaType string, schema interface{}) (*codec, error) {
+func (st symtab) buildCodecForTypeDescribedByString(enclosingNamespace string, schemaType string, schema interface{}) (*Codec, error) {
 	// when codec already exists, return it
 	if cd, ok := st.cache[schemaType]; ok {
 		return cd, nil
@@ -132,7 +152,7 @@ func (st symtab) buildCodecForTypeDescribedByString(enclosingNamespace string, s
 }
 
 // notion of enclosing namespace changes when record, enum, or fixed create a new namespace, for child objects.
-func (st symtab) registerCodec(codec *codec, schemaMap map[string]interface{}, enclosingNamespace string) error {
+func (st symtab) registerCodec(codec *Codec, schemaMap map[string]interface{}, enclosingNamespace string) error {
 	var name, namespace string
 	if value, ok := schemaMap["name"]; ok {
 		name, ok = value.(string)
@@ -161,3 +181,5 @@ func (st symtab) registerCodec(codec *codec, schemaMap map[string]interface{}, e
 	}
 	return nil
 }
+
+// get notion -- give a codec a blob, return datum specified by provided specification string.

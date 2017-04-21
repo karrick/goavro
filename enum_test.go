@@ -64,11 +64,12 @@ func TestEnumDecodedIndexLessThanZero(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	value, buf, err := codec.Decode([]byte{byte(1)})
+	originalBuf := []byte{byte(1)}
+	value, buf, err := codec.Decode(originalBuf)
 	if value != nil {
 		t.Errorf("Actual: %#v; Expected: %#v", value, nil)
 	}
-	if len(buf) != 0 {
+	if !bytes.Equal(buf, originalBuf) {
 		t.Errorf("Actual: %#v; Expected: %#v", buf, nil)
 	}
 	if err == nil {
@@ -81,11 +82,12 @@ func TestEnumDecodedIndexTooLarge(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	value, buf, err := codec.Decode([]byte{byte(4)})
+	originalBuf := []byte{byte(4)}
+	value, buf, err := codec.Decode(originalBuf)
 	if value != nil {
 		t.Errorf("Actual: %#v; Expected: %#v", value, nil)
 	}
-	if len(buf) != 0 {
+	if !bytes.Equal(buf, originalBuf) {
 		t.Errorf("Actual: %#v; Expected: %#v", buf, nil)
 	}
 	if err == nil {

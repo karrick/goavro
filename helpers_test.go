@@ -59,7 +59,7 @@ func testCodecDecoder(t *testing.T, schema string, datum interface{}, encoded []
 		t.Errorf("Schema: %q; Datum: %v; Actual: %#v; Expected: %#v", schema, datum, actual, expected)
 	}
 
-	// to prevent big switch statement, for testing, convert each to string and compare.
+	// for testing purposes, to prevent big switch statement, convert each to string and compare.
 	if actual, expected := fmt.Sprintf("%v", value), fmt.Sprintf("%v", datum); actual != expected {
 		t.Errorf("Schema: %q; Datum: %v; Actual: %#v; Expected: %#v", schema, datum, actual, expected)
 	}
