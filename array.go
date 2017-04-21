@@ -21,8 +21,8 @@ func (st symtab) makeArrayCodec(enclosingNamespace string, schema interface{}) (
 	}
 
 	return &codec{
-		name: "array (FIXME)",
-		decoder: func(buf []byte) (interface{}, []byte, error) {
+		name: &Name{"array", ""}, // ???
+		binaryDecoder: func(buf []byte) (interface{}, []byte, error) {
 			var value interface{}
 			var err error
 
@@ -46,7 +46,7 @@ func (st symtab) makeArrayCodec(enclosingNamespace string, schema interface{}) (
 				}
 				// Decode `blockCount` datum values from buffer
 				for i := int64(0); i < blockCount; i++ {
-					if value, buf, err = valuesCodec.decoder(buf); err != nil {
+					if value, buf, err = valuesCodec.binaryDecoder(buf); err != nil {
 						return nil, buf, fmt.Errorf("cannot decode array: cannot decode item: %d; %s", i, err)
 					}
 					arrayValues = append(arrayValues, value)
@@ -59,7 +59,7 @@ func (st symtab) makeArrayCodec(enclosingNamespace string, schema interface{}) (
 			}
 			return arrayValues, buf, nil
 		},
-		encoder: func(buf []byte, datum interface{}) ([]byte, error) {
+		binaryEncoder: func(buf []byte, datum interface{}) ([]byte, error) {
 			var arrayValues []interface{}
 			switch i := datum.(type) {
 			case []interface{}:
@@ -83,7 +83,7 @@ func (st symtab) makeArrayCodec(enclosingNamespace string, schema interface{}) (
 			if len(arrayValues) > 0 {
 				buf, _ = longEncoder(buf, len(arrayValues))
 				for i, item := range arrayValues {
-					if buf, err = valuesCodec.encoder(buf, item); err != nil {
+					if buf, err = valuesCodec.binaryEncoder(buf, item); err != nil {
 						return buf, fmt.Errorf("cannot encode array: cannot encode item: %d; %v; %s", i, item, err)
 					}
 				}

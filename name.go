@@ -1,6 +1,8 @@
 package goavro
 
 import (
+	"errors"
+	"fmt"
 	"strings"
 )
 
@@ -52,7 +54,7 @@ type Name struct {
 
 // NewName returns a new Name instance after first ensuring the arguments do not violate any of the
 // Avro naming rules.
-func NewName(name, namespace, enclosingNamespace string) (Name, error) {
+func NewName(name, namespace, enclosingNamespace string) (*Name, error) {
 	var n Name
 
 	if index := strings.LastIndexByte(name, '.'); index > -1 {
@@ -78,14 +80,33 @@ func NewName(name, namespace, enclosingNamespace string) (Name, error) {
 	// verify all components of the full name for adherence to Avro naming rules
 	for _, component := range strings.Split(n.FullName, ".") {
 		if err := checkNameComponent(component); err != nil {
-			// clear out the field members to prevent use of invalid name data
-			n.FullName = ""
-			n.Namespace = ""
-			return n, err
+			return nil, err
 		}
 	}
 
-	return n, nil
+	return &n, nil
+}
+
+func newNameFromSchemaMap(enclosingNamespace string, schemaMap map[string]interface{}) (*Name, error) {
+	var nameString, namespaceString string
+
+	name, ok := schemaMap["name"]
+	if !ok {
+		return nil, errors.New("cannot create name: ought to have name key")
+	}
+	nameString, ok = name.(string)
+	if !ok || nameString == "" {
+		return nil, fmt.Errorf("cannot create name: name value ought to be non-empty string; received: %T", name)
+	}
+	namespace, ok := schemaMap["namespace"]
+	if ok {
+		namespaceString, ok = namespace.(string)
+		if !ok || namespaceString == "" {
+			return nil, fmt.Errorf("cannot crate name: namespace value ought to be non-empty string; received: %T", namespace)
+		}
+	}
+
+	return NewName(nameString, namespaceString, enclosingNamespace)
 }
 
 // Equal returns true when two Name instances refer to the same Avro name; otherwise it returns
@@ -95,5 +116,13 @@ func (n Name) Equal(n2 Name) bool {
 }
 
 func (n Name) String() string {
+	return n.FullName
+}
+
+// short returns the name without the prefixed namespace.
+func (n Name) short() string {
+	if index := strings.LastIndexByte(n.FullName, '.'); index > -1 {
+		return n.FullName[index+1:]
+	}
 	return n.FullName
 }

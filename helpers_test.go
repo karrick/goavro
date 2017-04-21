@@ -14,7 +14,7 @@ func testBadDatumType(t *testing.T, schema string, datum interface{}, expected [
 	if err != nil {
 		t.Fatal(err)
 	}
-	encoded, err := codec.Encode(nil, datum)
+	encoded, err := codec.BinaryEncode(nil, datum)
 	if len(encoded) != len(expected) {
 		t.Errorf("Schema: %q; Datum: %v; Actual: %#v; Expected: %#v", schema, datum, encoded, expected)
 	}
@@ -31,7 +31,7 @@ func testCodecBufferUnderflow(t *testing.T, schema string, buf []byte, isTooShor
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, _, err = codec.Decode(buf)
+	_, _, err = codec.BinaryDecode(buf)
 	if isTooShort {
 		if actual, expected := err, fmt.Sprintf("cannot decode %s: buffer underflow", schema); actual == nil || actual.Error() != expected {
 			t.Errorf("Schema: %q; Actual: %#v; Expected: %#v", schema, actual, expected)
@@ -49,7 +49,7 @@ func testCodecDecoder(t *testing.T, schema string, datum interface{}, encoded []
 		t.Fatal(err)
 	}
 
-	value, remaining, err := codec.Decode(encoded)
+	value, remaining, err := codec.BinaryDecode(encoded)
 	if err != nil {
 		t.Fatalf("Schema: %q; %s", schema, err)
 	}
@@ -71,7 +71,7 @@ func testCodecEncoder(t *testing.T, schema string, datum interface{}, expected [
 		t.Fatalf("Schma: %q: %s", schema, err)
 	}
 
-	actual, err := codec.Encode(nil, datum)
+	actual, err := codec.BinaryEncode(nil, datum)
 	if err != nil {
 		t.Fatalf("Schema: %q; Datum: %v; %s", schema, datum, err)
 	}

@@ -21,8 +21,8 @@ func (st symtab) makeMapCodec(namespace string, schema interface{}) (*codec, err
 	}
 
 	return &codec{
-		name: "map (FIXME)",
-		decoder: func(buf []byte) (interface{}, []byte, error) {
+		name: &Name{"map", ""}, // ???
+		binaryDecoder: func(buf []byte) (interface{}, []byte, error) {
 			var err error
 			var value interface{}
 
@@ -50,7 +50,7 @@ func (st symtab) makeMapCodec(namespace string, schema interface{}) (*codec, err
 					}
 					key := value.(string) // string decoder always returns a string
 					// then decode the value
-					if value, buf, err = valuesCodec.decoder(buf); err != nil {
+					if value, buf, err = valuesCodec.binaryDecoder(buf); err != nil {
 						return nil, buf, fmt.Errorf("cannot decode map: cannot decode value for key: %q; %s", key, err)
 					}
 					mapValues[key] = value
@@ -63,7 +63,7 @@ func (st symtab) makeMapCodec(namespace string, schema interface{}) (*codec, err
 			}
 			return mapValues, buf, nil
 		},
-		encoder: func(buf []byte, datum interface{}) ([]byte, error) {
+		binaryEncoder: func(buf []byte, datum interface{}) ([]byte, error) {
 			mapValues, ok := datum.(map[string]interface{})
 			if !ok {
 				return buf, fmt.Errorf("cannot encode map: received: %T", datum)
@@ -75,7 +75,7 @@ func (st symtab) makeMapCodec(namespace string, schema interface{}) (*codec, err
 					// stringEncoder only fails when given non string, so elide error checking
 					buf, _ = stringEncoder(buf, k)
 					// encode the pair value
-					if buf, err = valuesCodec.encoder(buf, v); err != nil {
+					if buf, err = valuesCodec.binaryEncoder(buf, v); err != nil {
 						return buf, fmt.Errorf("cannot encode map: cannot encode value for key: %q; %v; %s", k, v, err)
 					}
 				}
