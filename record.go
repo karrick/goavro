@@ -46,6 +46,7 @@ func (st symtab) makeRecordCodec(enclosingNamespace string, schema interface{}) 
 	}
 
 	c := &codec{
+		namedType: true,
 		binaryDecoder: func(buf []byte) (interface{}, []byte, error) {
 			recordMap := make(map[string]interface{}, len(fieldCodecs))
 			for i, codec := range fieldCodecs {
@@ -63,6 +64,9 @@ func (st symtab) makeRecordCodec(enclosingNamespace string, schema interface{}) 
 			valueMap, ok := datum.(map[string]interface{})
 			if !ok {
 				return buf, fmt.Errorf("cannot encode record: value expected Go map[string]interface{}; received: %T", datum)
+			}
+			if actual, expected := len(valueMap), len(fieldCodecs); actual != expected {
+				return buf, fmt.Errorf("cannot encode record: number of fields does not match schema: %d != %d", actual, expected)
 			}
 			// records encoded in order fields were defined in schema
 			for i, codec := range fieldCodecs {

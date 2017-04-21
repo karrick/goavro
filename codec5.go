@@ -33,6 +33,10 @@ type codec struct {
 
 	// textDecoder func([]byte) (interface{}, []byte, error)
 	// textEncoder func([]byte, interface{}) ([]byte, error)
+
+	// NOTE: When encoding unions, encoder attempts to encode using named type codecs prior to
+	// unnamed types.
+	namedType bool
 }
 
 // NewCodec returns a Codec that can encode and decode the specified Avro schema.

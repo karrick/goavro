@@ -34,6 +34,7 @@ func (st symtab) makeEnumCodec(enclosingNamespace string, schema interface{}) (*
 	}
 
 	c := &codec{
+		namedType: true,
 		binaryDecoder: func(buf []byte) (interface{}, []byte, error) {
 			var value interface{}
 			var err error
