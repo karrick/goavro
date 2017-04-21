@@ -10,25 +10,25 @@ import (
 func (st symtab) makeEnumCodec(enclosingNamespace string, schema interface{}) (*codec, error) {
 	schemaMap, ok := schema.(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("cannot create enum codec: expected: map[string]interface{}; received: %T", schema)
+		return nil, fmt.Errorf("cannot create Enum codec: expected: map[string]interface{}; received: %T", schema)
 	}
 	// enum type must have symbols
 	s1, ok := schemaMap["symbols"]
 	if !ok {
-		return nil, fmt.Errorf("cannot create enum codec: ought to have symbols key")
+		return nil, fmt.Errorf("cannot create Enum codec: ought to have symbols key")
 	}
 	s2, ok := s1.([]interface{})
 	if !ok || len(s2) == 0 {
-		return nil, fmt.Errorf("cannot create enum codec: symbols ought to be non-empty array of strings")
+		return nil, fmt.Errorf("cannot create Enum codec: symbols ought to be non-empty array of strings")
 	}
 	symbols := make([]string, len(s2))
 	for i, s := range s2 {
 		symbol, ok := s.(string)
 		if !ok {
-			return nil, fmt.Errorf("cannot create enum codec: symbol ought to be string; received: %T", symbol)
+			return nil, fmt.Errorf("cannot create Enum codec: symbol ought to be string; received: %T", symbol)
 		}
 		if err := checkNameComponent(symbol); err != nil {
-			return nil, fmt.Errorf("cannot create enum codec: invalid symbol name: %s", err)
+			return nil, fmt.Errorf("cannot create Enum codec: invalid symbol name: %s", err)
 		}
 		symbols[i] = symbol
 	}
@@ -64,10 +64,10 @@ func (st symtab) makeEnumCodec(enclosingNamespace string, schema interface{}) (*
 	}
 
 	if err := st.registerCodec(c, schemaMap, enclosingNamespace); err != nil {
-		return nil, fmt.Errorf("cannot create enum codec: %s", err)
+		return nil, fmt.Errorf("cannot create Enum codec: %s", err)
 	}
 	if c.name == nil {
-		return nil, errors.New("cannot create enum codec: enum requires name")
+		return nil, errors.New("cannot create Enum codec: enum requires name")
 	}
 	return c, nil
 }

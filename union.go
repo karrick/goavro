@@ -7,7 +7,7 @@ import (
 
 func (st symtab) buildCodecForTypeDescribedBySlice(enclosingNamespace string, schemaArray []interface{}) (*codec, error) {
 	if len(schemaArray) == 0 {
-		return nil, errors.New("cannot create union codec without any members")
+		return nil, errors.New("cannot create Union codec without any members")
 	}
 
 	allowedTypes := make([]string, len(schemaArray)) // used for error reporting when encoder receives invalid datum type
@@ -19,14 +19,14 @@ func (st symtab) buildCodecForTypeDescribedBySlice(enclosingNamespace string, sc
 		unionMemberCodec, err := st.buildCodec(enclosingNamespace, unionMemberSchema)
 		if err != nil {
 			// TODO: error message needs more surrounding context of where we are in schema
-			return nil, fmt.Errorf("cannot create union codec for item: %d; %s", i, err)
+			return nil, fmt.Errorf("cannot create Union codec for item: %d; %s", i, err)
 		}
 		fullName := unionMemberCodec.name.FullName
 		if _, ok := indexFromNamedType[fullName]; ok {
-			return nil, fmt.Errorf("cannot create union: duplicate type: %s", unionMemberCodec.name)
+			return nil, fmt.Errorf("cannot create Union: duplicate type: %s", unionMemberCodec.name)
 		}
 		if _, ok := indexFromUnnamedType[fullName]; ok {
-			return nil, fmt.Errorf("cannot create union: duplicate type: %s", unionMemberCodec.name)
+			return nil, fmt.Errorf("cannot create Union: duplicate type: %s", unionMemberCodec.name)
 		}
 		if unionMemberCodec.namedType {
 			indexFromNamedType[fullName] = i
@@ -49,12 +49,12 @@ func (st symtab) buildCodecForTypeDescribedBySlice(enclosingNamespace string, sc
 			}
 			index := decoded.(int64) // longDecoder always returns int64, so elide error checking
 			if index < 0 || index >= int64(len(codecFromIndex)) {
-				return nil, buf, fmt.Errorf("cannot decode union: index must be between 0 and %d: read index: %d", len(codecFromIndex)-1, index)
+				return nil, buf, fmt.Errorf("cannot decode Union: index must be between 0 and %d: read index: %d", len(codecFromIndex)-1, index)
 			}
 			c := codecFromIndex[index]
 			decoded, buf, err = c.binaryDecoder(buf)
 			if err != nil {
-				return nil, buf, fmt.Errorf("cannot decode union: item %d; %s", index, err)
+				return nil, buf, fmt.Errorf("cannot decode Union: item %d; %s", index, err)
 			}
 			if decoded == nil {
 				return nil, buf, nil
@@ -65,10 +65,10 @@ func (st symtab) buildCodecForTypeDescribedBySlice(enclosingNamespace string, sc
 			var err error
 			originalLength := len(buf)
 
-			// ??? why have all this stuff ???  because when encoding a datum into a union, the
-			// client must be able to specify whether a particular datum is one union member type or
-			// another. normally, it wouldn't matter. if the client throws a Go int into a union
-			// that holds any numeric type, the old method is to loop through union member encoders
+			// ??? why have all this stuff ???  because when encoding a datum into a Union, the
+			// client must be able to specify whether a particular datum is one Union member type or
+			// another. normally, it wouldn't matter. if the client throws a Go int into a Union
+			// that holds any numeric type, the old method is to loop through Union member encoders
 			// and choose the first one that can actually encode the provided datum value.  However,
 			// when a schema allows either a map or a record, and the client provides a record,
 			// which actually looks like a Go map, ideally the encoder will chose record type. when
@@ -94,7 +94,7 @@ func (st symtab) buildCodecForTypeDescribedBySlice(enclosingNamespace string, sc
 				}
 				buf = buf[:originalLength] // reset buf and try with next encoder in list
 			}
-			return buf, fmt.Errorf("cannot encode union value: no union types in schema support datum: allowed types: %v; received: %T", allowedTypes, datum)
+			return buf, fmt.Errorf("cannot encode Union value: no Union types in schema support datum: allowed types: %v; received: %T", allowedTypes, datum)
 		},
 	}, nil
 }

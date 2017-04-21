@@ -8,20 +8,20 @@ import (
 func (st symtab) makeRecordCodec(enclosingNamespace string, schema interface{}) (*codec, error) {
 	schemaMap, ok := schema.(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("cannot create record codec: expected: map[string]interface{}; received: %T", schema)
+		return nil, fmt.Errorf("cannot create Record codec: expected: map[string]interface{}; received: %T", schema)
 	}
 	fields, ok := schemaMap["fields"]
 	if !ok {
-		return nil, fmt.Errorf("cannot create record codec: ought to have fields key")
+		return nil, fmt.Errorf("cannot create Record codec: ought to have fields key")
 	}
 	fieldSchemas, ok := fields.([]interface{})
 	if !ok || len(fieldSchemas) == 0 {
-		return nil, fmt.Errorf("cannot create record codec: fields ought to be non-empty array")
+		return nil, fmt.Errorf("cannot create Record codec: fields ought to be non-empty array")
 	}
 
 	recordName, err := newNameFromSchemaMap(enclosingNamespace, schemaMap)
 	if err != nil {
-		return nil, fmt.Errorf("cannot create record codec: %s", err)
+		return nil, fmt.Errorf("cannot create Record codec: %s", err)
 	}
 
 	fieldCodecs := make([]*codec, len(fieldSchemas))
@@ -30,11 +30,11 @@ func (st symtab) makeRecordCodec(enclosingNamespace string, schema interface{}) 
 		// fmt.Printf("fieldSchema: %v\n", fieldSchema)
 		fieldSchemaMap, ok := fieldSchema.(map[string]interface{})
 		if !ok {
-			return nil, fmt.Errorf("cannot create record codec: field schema ought to be Go map[string]interface{}; received: %T", fieldSchema)
+			return nil, fmt.Errorf("cannot create Record codec: field schema ought to be Go map[string]interface{}; received: %T", fieldSchema)
 		}
 		fieldCodec, err := st.buildCodecForTypeDescribedByMap(recordName.Namespace, fieldSchemaMap) // field's enclosing namespace
 		if err != nil {
-			return nil, fmt.Errorf("cannot create record codec: cannot create codec for record field: %d; %s", i, err)
+			return nil, fmt.Errorf("cannot create Record codec: cannot create codec for record field: %d; %s", i, err)
 		}
 
 		// field's full name, e.g., "com.example.X", ought to be registered with the symbol table;
@@ -86,10 +86,10 @@ func (st symtab) makeRecordCodec(enclosingNamespace string, schema interface{}) 
 	}
 
 	if err := st.registerCodec(c, schemaMap, enclosingNamespace); err != nil {
-		return nil, fmt.Errorf("cannot create record codec: %s", err)
+		return nil, fmt.Errorf("cannot create Record codec: %s", err)
 	}
 	if c.name == nil {
-		return nil, errors.New("cannot create record codec: record requires name")
+		return nil, errors.New("cannot create Record codec: record requires name")
 	}
 	return c, nil
 }

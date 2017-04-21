@@ -48,7 +48,7 @@ func bytesDecoder(buf []byte) (interface{}, []byte, error) {
 		return nil, buf, fmt.Errorf("cannot decode bytes: negative length: %d", size)
 	}
 	if size > int64(len(buf)) {
-		return nil, buf, fmt.Errorf("cannot decode bytes: length exceeds remaining buffer size: %d > %d", size, len(buf))
+		return nil, buf, fmt.Errorf("cannot decode bytes: size exceeds remaining buffer length: %d > %d", size, len(buf))
 	}
 	return buf[:size], buf[size:], nil
 }
@@ -296,7 +296,7 @@ func stringDecoder(buf []byte) (interface{}, []byte, error) {
 		return nil, buf, fmt.Errorf("cannot decode string: negative length: %d", size)
 	}
 	if size > int64(len(buf)) {
-		return nil, buf, fmt.Errorf("cannot decode string: length exceeds remaining buffer size: %d > %d", size, len(buf))
+		return nil, buf, fmt.Errorf("cannot decode string: size exceeds remaining buffer length: %d > %d", size, len(buf))
 	}
 	return string(buf[:size]), buf[size:], nil
 }
