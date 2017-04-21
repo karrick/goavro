@@ -75,7 +75,7 @@ func (st symtab) makeMapCodec(namespace string, schema interface{}) (*codec, err
 					// stringEncoder only fails when given non string, so elide error checking
 					buf, _ = stringEncoder(buf, k)
 					// encode the pair value
-					if buf, err = valuesCodec.Encode(buf, v); err != nil {
+					if buf, err = valuesCodec.encoder(buf, v); err != nil {
 						return buf, fmt.Errorf("cannot encode map: cannot encode value for key: %q; %v; %s", k, v, err)
 					}
 				}

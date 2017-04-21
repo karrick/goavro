@@ -65,18 +65,17 @@ func testCodecDecoder(t *testing.T, schema string, datum interface{}, encoded []
 	}
 }
 
-func testCodecEncoder(t *testing.T, schema string, datum interface{}, buf []byte) {
+func testCodecEncoder(t *testing.T, schema string, datum interface{}, expected []byte) {
 	codec, err := goavro.NewCodec(schema)
 	if err != nil {
 		t.Fatalf("Schma: %q: %s", schema, err)
 	}
 
-	encoded, err := codec.Encode(nil, datum)
+	actual, err := codec.Encode(nil, datum)
 	if err != nil {
 		t.Fatalf("Schema: %q; Datum: %v; %s", schema, datum, err)
 	}
-
-	if actual, expected := encoded, buf; !bytes.Equal(actual, expected) {
+	if !bytes.Equal(actual, expected) {
 		t.Errorf("Schema: %q; Datum: %v; Actual: %#v; Expected: %#v", schema, datum, actual, expected)
 	}
 }

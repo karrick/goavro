@@ -127,3 +127,4 @@ to access data on leaf nodes, and enumerate various types of
 collections on non-leaf nodes, we need to expose a few interfaces that
 allow easy node access and traversal.
 
+get notion -- give a codec a blob, return datum specified by provided specification string.
