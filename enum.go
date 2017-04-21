@@ -1,6 +1,7 @@
 package goavro
 
 import (
+	"errors"
 	"fmt"
 )
 
@@ -33,7 +34,6 @@ func (st symtab) makeEnumCodec(enclosingNamespace string, schema interface{}) (*
 	}
 
 	c := &codec{
-		// name: "enum",
 		decoder: func(buf []byte) (interface{}, []byte, error) {
 			var value interface{}
 			var err error
@@ -64,6 +64,9 @@ func (st symtab) makeEnumCodec(enclosingNamespace string, schema interface{}) (*
 
 	if err := st.registerCodec(c, schemaMap, enclosingNamespace); err != nil {
 		return nil, fmt.Errorf("cannot create enum codec: %s", err)
+	}
+	if c.name == "" {
+		return nil, errors.New("cannot create enum codec: enum requires name")
 	}
 	return c, nil
 }

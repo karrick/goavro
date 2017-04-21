@@ -7,43 +7,50 @@ import (
 	"github.com/karrick/goavro"
 )
 
+func TestEnumRequiresName(t *testing.T) {
+	_, err := goavro.NewCodec(`{"type":"enum","symbols":["alpha","bravo"]}`)
+	if err == nil {
+		t.Errorf("Actual: %#v; Expected: %#v", err, "non-nil")
+	}
+}
+
 func TestEnumMissingSymbols(t *testing.T) {
-	_, err := goavro.NewCodec(`{"type":"enum"}`)
+	_, err := goavro.NewCodec(`{"type":"enum","name":"foo"}`)
 	if err == nil {
 		t.Errorf("Actual: %#v; Expected: %#v", err, "non-nil")
 	}
 }
 
 func TestEnumSymbolsNotSlice(t *testing.T) {
-	_, err := goavro.NewCodec(`{"type":"enum","symbols":3}`)
+	_, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":3}`)
 	if err == nil {
 		t.Errorf("Actual: %#v; Expected: %#v", err, "non-nil")
 	}
 }
 
 func TestEnumSymbolsNotSliceOfStrings(t *testing.T) {
-	_, err := goavro.NewCodec(`{"type":"enum","symbols":[3]}`)
+	_, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":[3]}`)
 	if err == nil {
 		t.Errorf("Actual: %#v; Expected: %#v", err, "non-nil")
 	}
 }
 
 func TestEnumSymbolsEmpty(t *testing.T) {
-	_, err := goavro.NewCodec(`{"type":"enum","symbols":[]}`)
+	_, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":[]}`)
 	if err == nil {
 		t.Errorf("Actual: %#v; Expected: %#v", err, "non-nil")
 	}
 }
 
 func TestEnumSymbolsHasInvalidString(t *testing.T) {
-	_, err := goavro.NewCodec(`{"type":"enum","symbols":["&invalid"]}`)
+	_, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":["&invalid"]}`)
 	if err == nil {
 		t.Errorf("Actual: %#v; Expected: %#v", err, "non-nil")
 	}
 }
 
 func TestEnumDecodedEmptyBuf(t *testing.T) {
-	codec, err := goavro.NewCodec(`{"type":"enum","symbols":["alpha","bravo"]}`)
+	codec, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -60,7 +67,7 @@ func TestEnumDecodedEmptyBuf(t *testing.T) {
 }
 
 func TestEnumDecodedIndexLessThanZero(t *testing.T) {
-	codec, err := goavro.NewCodec(`{"type":"enum","symbols":["alpha","bravo"]}`)
+	codec, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +85,7 @@ func TestEnumDecodedIndexLessThanZero(t *testing.T) {
 }
 
 func TestEnumDecodedIndexTooLarge(t *testing.T) {
-	codec, err := goavro.NewCodec(`{"type":"enum","symbols":["alpha","bravo"]}`)
+	codec, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,7 +103,7 @@ func TestEnumDecodedIndexTooLarge(t *testing.T) {
 }
 
 func TestEnumDecodedIndexZero(t *testing.T) {
-	codec, err := goavro.NewCodec(`{"type":"enum","symbols":["alpha","bravo"]}`)
+	codec, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -113,7 +120,7 @@ func TestEnumDecodedIndexZero(t *testing.T) {
 }
 
 func TestEnumDecodedIndexLargestValid(t *testing.T) {
-	codec, err := goavro.NewCodec(`{"type":"enum","symbols":["alpha","bravo"]}`)
+	codec, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -130,7 +137,7 @@ func TestEnumDecodedIndexLargestValid(t *testing.T) {
 }
 
 func TestEnumEncodedDatumNotString(t *testing.T) {
-	codec, err := goavro.NewCodec(`{"type":"enum","symbols":["alpha","bravo"]}`)
+	codec, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,7 +151,7 @@ func TestEnumEncodedDatumNotString(t *testing.T) {
 }
 
 func TestEnumEncodedDatumNotInEnum(t *testing.T) {
-	codec, err := goavro.NewCodec(`{"type":"enum","symbols":["alpha","bravo"]}`)
+	codec, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -158,7 +165,7 @@ func TestEnumEncodedDatumNotInEnum(t *testing.T) {
 }
 
 func TestEnumEncodedDatumGood(t *testing.T) {
-	codec, err := goavro.NewCodec(`{"type":"enum","symbols":["alpha","bravo"]}`)
+	codec, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -173,7 +180,7 @@ func TestEnumEncodedDatumGood(t *testing.T) {
 
 // ??? while this particular test is worthwhile, this might not be best location for it
 func TestEnumValueTypeOfMap(t *testing.T) {
-	codec, err := goavro.NewCodec(`{"type":"map","values":{"type":"enum","symbols":["alpha","bravo"]}}`)
+	codec, err := goavro.NewCodec(`{"type":"map","values":{"type":"enum","name":"foo","symbols":["alpha","bravo"]}}`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -207,7 +214,7 @@ func TestEnumNamedTypeSimple(t *testing.T) {
 }
 
 func TestEnumNamedTypeFullName(t *testing.T) {
-	codec, err := goavro.NewCodec(`{"type":"enum","name":"com.example.foo","symbols":["alpha","bravo"]}`)
+	codec, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`)
 	if err != nil {
 		t.Fatal(err)
 	}
