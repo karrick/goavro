@@ -28,7 +28,7 @@ type codec struct {
 }
 
 // NewCodec returns a Codec that can encode and decode the specified schema.
-func NewCodec(schemaJSON string) (Codec, error) {
+func NewCodec(schemaSpecification string) (Codec, error) {
 	// pre-load the cache with primitive types
 	st := &symtab{cache: map[string]*codec{
 		"boolean": &codec{name: "boolean", decoder: booleanDecoder, encoder: booleanEncoder},
@@ -44,16 +44,18 @@ func NewCodec(schemaJSON string) (Codec, error) {
 	// NOTE: Some clients will give us unadorned primitive type name for the schema, e.g., "long".
 	// This is a valid schema, while it is not valid JSON.  Provide special handling for primitive
 	// type names.
-	if cd, ok := st.cache[schemaJSON]; ok {
+	if cd, ok := st.cache[schemaSpecification]; ok {
 		return cd, nil
 	}
 
 	var schema interface{}
-	if err := json.Unmarshal([]byte(schemaJSON), &schema); err != nil {
+	if err := json.Unmarshal([]byte(schemaSpecification), &schema); err != nil {
 		return nil, fmt.Errorf("cannot unmarshal JSON: %s", err)
 	}
 
-	return st.buildCodec("", schema)
+	codec, err := st.buildCodec("", schema)
+	// fmt.Printf("DEBUG: symtab: %#v\n", st)
+	return codec, err
 }
 
 func (cd codec) Decode(buf []byte) (interface{}, []byte, error) {
@@ -84,12 +86,12 @@ func (st symtab) buildCodec(enclosingNamespace string, schema interface{}) (*cod
 }
 
 // Reach into the map, grabbing its "type".  Use that to create the codec.
-func (st symtab) buildCodecForTypeDescribedByMap(enclosingNamespace string, schema map[string]interface{}) (*codec, error) {
+func (st symtab) buildCodecForTypeDescribedByMap(enclosingNamespace string, schemaMap map[string]interface{}) (*codec, error) {
 	// INPUT: {"type":"boolean", ...}
 
-	t, ok := schema["type"]
+	t, ok := schemaMap["type"]
 	if !ok {
-		return nil, fmt.Errorf("cannot build codec: missing type: %v", schema)
+		return nil, fmt.Errorf("cannot build codec: missing type: %v", schemaMap)
 	}
 	switch v := t.(type) {
 	case map[string]interface{}:
@@ -99,7 +101,7 @@ func (st symtab) buildCodecForTypeDescribedByMap(enclosingNamespace string, sche
 		// EXAMPLE: "type":"int"
 		// EXAMPLE: "type":"enum"
 		// EXAMPLE: "type":"somePreviouslyDefinedCustomTypeString"
-		return st.buildCodecForTypeDescribedByString(enclosingNamespace, v, schema)
+		return st.buildCodecForTypeDescribedByString(enclosingNamespace, v, schemaMap)
 	case []interface{}:
 		return st.buildCodecForTypeDescribedBySlice(enclosingNamespace, v)
 	default:
@@ -109,21 +111,6 @@ func (st symtab) buildCodecForTypeDescribedByMap(enclosingNamespace string, sche
 
 func (st symtab) buildCodecForTypeDescribedByString(enclosingNamespace string, schemaType string, schema interface{}) (*codec, error) {
 	// when codec already exists, return it
-
-	// // NOTE: References to previously defined names are as in the
-	// fmt.Printf("namespace: %q; schemaType: %q\n", namespace, schemaType)
-	// ns := &Name{Namespace: namespace}
-
-	// name, err := NewName(schemaType, "", ns) // ???
-	// if err != nil {
-	// 	return nil, fmt.Errorf("cannot fullname: %s", err)
-	// }
-	// if true {
-	// 	name.FullName = namespace + schemaType // DEBUG just to get the rest working until we get some named types
-	// }
-
-	// if cd, ok := st.cache[name.FullName]; ok {
-	// fmt.Printf("schemaType: %q\n", schemaType)
 	if cd, ok := st.cache[schemaType]; ok {
 		return cd, nil
 	}
@@ -142,4 +129,35 @@ func (st symtab) buildCodecForTypeDescribedByString(enclosingNamespace string, s
 		// fmt.Printf("ns: %q\n", name.FullName)
 		return nil, fmt.Errorf("cannot build codec for unknown schema type: %s", schemaType)
 	}
+}
+
+// notion of enclosing namespace changes when record, enum, or fixed create a new namespace, for child objects.
+func (st symtab) registerCodec(codec *codec, schemaMap map[string]interface{}, enclosingNamespace string) error {
+	var name, namespace string
+	if value, ok := schemaMap["name"]; ok {
+		name, ok = value.(string)
+		if !ok {
+			return fmt.Errorf("cannot register codec: name ought to be string; received: %T", value)
+		}
+		if name != "" {
+			if value, ok := schemaMap["namespace"]; ok {
+				namespace, ok = value.(string)
+				if !ok {
+					return fmt.Errorf("cannot register codec: namespace ought to be string; received: %T", value)
+				}
+			}
+			n, err := NewName(name, namespace, enclosingNamespace)
+			if err != nil {
+				return fmt.Errorf("cannot register codec: %s", err)
+			}
+
+			// fmt.Printf("REGISTER: n: %#v\n", n)
+			if _, ok := st.cache[n.FullName]; ok {
+				return fmt.Errorf("cannot register codec: duplicate type name: %q", n.FullName)
+			}
+			st.cache[n.FullName] = codec
+			codec.name = n.FullName
+		}
+	}
+	return nil
 }

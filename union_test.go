@@ -75,6 +75,13 @@ func TestUnionOfEnumsWithDifferentTypeButInvalidString(t *testing.T) {
 	}
 }
 
+func TestUnionOfEnumsWithSameNames(t *testing.T) {
+	_, err := goavro.NewCodec(`[{"type":"enum","name":"com.example.one","symbols":["red","green","blue"]},{"type":"enum","name":"one","namespace":"com.example","symbols":["dog","cat"]}]`)
+	if err == nil {
+		t.Errorf("Actual: %#v; Expected: %#v", err, "non-nil")
+	}
+}
+
 func TestUnionOfEnumsWithDifferentTypeValidString(t *testing.T) {
 	codec, err := goavro.NewCodec(`[{"type":"enum","name":"com.example.colors","symbols":["red","green","blue"]},{"type":"enum","name":"com.example.animals","symbols":["dog","cat"]}]`)
 	if err != nil {

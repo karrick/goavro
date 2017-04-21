@@ -32,7 +32,7 @@ func (st symtab) makeEnumCodec(enclosingNamespace string, schema interface{}) (*
 		symbols[i] = symbol
 	}
 
-	codec := &codec{
+	c := &codec{
 		// name: "enum",
 		decoder: func(buf []byte) (interface{}, []byte, error) {
 			var value interface{}
@@ -62,30 +62,8 @@ func (st symtab) makeEnumCodec(enclosingNamespace string, schema interface{}) (*
 		},
 	}
 
-	// name support
-	var name, namespace string
-	if value, ok := schemaMap["name"]; ok {
-		name, ok = value.(string)
-		if !ok {
-			return nil, fmt.Errorf("cannot create enum codec: name ought to be string; received: %T", value)
-		}
+	if err := st.registerCodec(c, schemaMap, enclosingNamespace); err != nil {
+		return nil, fmt.Errorf("cannot create enum codec: %s", err)
 	}
-	if value, ok := schemaMap["namespace"]; ok {
-		namespace, ok = value.(string)
-		if !ok {
-			return nil, fmt.Errorf("cannot create enum codec: namespace ought to be string; received: %T", value)
-		}
-	}
-	if name != "" {
-		// if name is defined, then register with symbol table
-		n, err := NewName(name, namespace, enclosingNamespace)
-		if err != nil {
-			return nil, fmt.Errorf("cannot create enum codec: %s", err)
-		}
-		// fmt.Printf("DEBUG: n: %#v\n", n)
-		codec.name = n.FullName
-		st.cache[n.FullName] = codec
-	}
-
-	return codec, nil
+	return c, nil
 }
