@@ -45,23 +45,28 @@ func TestMapValueTypeEnum(t *testing.T) {
 }
 
 func TestMapValueTypeRecord(t *testing.T) {
-	t.Skip("TODO")
-	codec, err := goavro.NewCodec(`{"type":"map","values":{"type":"record","name":"foo","fields":[{"name":"field1","type":"int"}]}}`)
+	codec, err := goavro.NewCodec(`{"type":"map","values":{"type":"record","name":"foo","fields":[{"name":"field1","type":"string"},{"name":"field2","type":"int"}]}}`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	buf, err := codec.BinaryEncode(nil, map[string]interface{}{"map-key": map[string]interface{}{
-		"foo": "blubber",
-	}})
+	buf, err := codec.BinaryEncode(nil, map[string]interface{}{
+		"map-key": map[string]interface{}{
+			"field1": "unlucky",
+			"field2": 13,
+		},
+	})
 	if err != nil {
 		t.Fatal(err)
 	}
 	if actual, expected := buf, []byte{
-		0x2, // blockCount = 1 pair
-		0xe, // key length = 7
-		's', 'o', 'm', 'e', 'K', 'e', 'y',
-		0x2, // value = index 1 ("bravo")
-		0,   // blockCount = 0 pairs
+		0x2,                               // blockCount = 1 key-value pair in top level map
+		0xe,                               // first key length = 7
+		'm', 'a', 'p', '-', 'k', 'e', 'y', // first key = "map-key"
+		// this key's value is a record, which is encoded by concatenated its field values
+		0x0e, // field one string length = 7
+		'u', 'n', 'l', 'u', 'c', 'k', 'y',
+		0x1a, // 13
+		0,    // map has no more blocks
 	}; !bytes.Equal(buf, expected) {
 		t.Errorf("Actual: %#v; Expected: %#v", actual, expected)
 	}
