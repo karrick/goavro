@@ -11,8 +11,9 @@ func (st symtab) buildCodecForTypeDescribedBySlice(enclosingNamespace string, sc
 	}
 
 	allowedTypes := make([]string, len(schemaArray)) // used for error reporting when encoder receives invalid datum type
-	indexFromNamedType := make(map[string]int, len(schemaArray))
-	indexFromUnnamedType := make(map[string]int, len(schemaArray))
+	dupliceCheck := make(map[string]struct{})
+	namedTypeIndexes := make([]int, len(schemaArray))
+	unnamedTypeIndexes := make([]int, len(schemaArray))
 	codecFromIndex := make([]*codec, len(schemaArray))
 
 	for i, unionMemberSchema := range schemaArray {
@@ -22,16 +23,14 @@ func (st symtab) buildCodecForTypeDescribedBySlice(enclosingNamespace string, sc
 			return nil, fmt.Errorf("cannot create Union codec for item: %d; %s", i, err)
 		}
 		fullName := unionMemberCodec.name.FullName
-		if _, ok := indexFromNamedType[fullName]; ok {
+		if _, ok := dupliceCheck[fullName]; ok {
 			return nil, fmt.Errorf("cannot create Union: duplicate type: %s", unionMemberCodec.name)
 		}
-		if _, ok := indexFromUnnamedType[fullName]; ok {
-			return nil, fmt.Errorf("cannot create Union: duplicate type: %s", unionMemberCodec.name)
-		}
+		dupliceCheck[fullName] = struct{}{}
 		if unionMemberCodec.namedType {
-			indexFromNamedType[fullName] = i
+			namedTypeIndexes = append(namedTypeIndexes, i)
 		} else {
-			indexFromUnnamedType[fullName] = i
+			unnamedTypeIndexes = append(unnamedTypeIndexes, i)
 		}
 		allowedTypes[i] = fullName
 		codecFromIndex[i] = unionMemberCodec
@@ -76,7 +75,7 @@ func (st symtab) buildCodecForTypeDescribedBySlice(enclosingNamespace string, sc
 			// always chose the record type first, and if that doesn't work, then try the map.
 
 			// Try all named types first (record, enum, fixed) (not sure if best solution; might not need for enum or fixed)
-			for _, index := range indexFromNamedType {
+			for _, index := range namedTypeIndexes {
 				c := codecFromIndex[index]
 				buf, _ = longEncoder(buf, index)
 				if buf, err = c.binaryEncoder(buf, datum); err == nil {
@@ -86,7 +85,7 @@ func (st symtab) buildCodecForTypeDescribedBySlice(enclosingNamespace string, sc
 			}
 
 			// Try all unnamed types last
-			for _, index := range indexFromUnnamedType {
+			for _, index := range unnamedTypeIndexes {
 				c := codecFromIndex[index]
 				buf, _ = longEncoder(buf, index)
 				if buf, err = c.binaryEncoder(buf, datum); err == nil {

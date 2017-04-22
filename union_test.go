@@ -20,7 +20,7 @@ func TestUnion(t *testing.T) {
 	testCodecEncoder(t, `["int","null"]`, 3, []byte("\x00\x06")) // can encode a bare 3
 }
 
-func _TestUnionWillTryToEncodeDatumValuesInSchemaOrder(t *testing.T) {
+func TestUnionWillTryToEncodeDatumValuesInSchemaOrder(t *testing.T) {
 	// all of these values fit in an Avro int, and that's before Avro long, so will use Avro int
 	testCodecBidirectional(t, `["null","int","long","float","double"]`, 3, []byte("\x02\x06"))
 	testCodecBidirectional(t, `["null","int","long","float","double"]`, int(3), []byte("\x02\x06"))
@@ -38,7 +38,7 @@ func _TestUnionWillTryToEncodeDatumValuesInSchemaOrder(t *testing.T) {
 	testCodecBidirectional(t, `["null","int","long","float","double"]`, float64(3.5), []byte("\x06\x00\x00\x60\x40"))
 }
 
-func _TestUnionWillCoerceTypeIfPossible(t *testing.T) {
+func TestUnionWillCoerceTypeIfPossible(t *testing.T) {
 	testCodecBidirectional(t, `["null","long","float","double"]`, int32(3), []byte("\x02\x06"))
 	testCodecBidirectional(t, `["null","int","float","double"]`, int64(3), []byte("\x02\x06"))
 	testCodecBidirectional(t, `["null","int","long","double"]`, float32(3.5), []byte("\x06\x00\x00\x00\x00\x00\x00\f@"))
