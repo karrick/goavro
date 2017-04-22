@@ -148,8 +148,8 @@ func (st symtab) buildCodecForTypeDescribedByString(enclosingNamespace string, s
 		return st.makeMapCodec(enclosingNamespace, schema)
 	case "enum":
 		return st.makeEnumCodec(enclosingNamespace, schema)
-	// case "fixed":
-	// 	return st.makeFixedCodec(enclosingNamespace, schema)
+	case "fixed":
+		return st.makeFixedCodec(enclosingNamespace, schema)
 	case "record":
 		return st.makeRecordCodec(enclosingNamespace, schema)
 	default:

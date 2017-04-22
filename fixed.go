@@ -41,6 +41,9 @@ func (st symtab) makeFixedCodec(enclosingNamespace string, schema interface{}) (
 			default:
 				return buf, fmt.Errorf("cannot encode Fixed: expected: Go string, []byte; received: %T", v)
 			}
+			if count := int32(len(value)); count > size {
+				return buf, fmt.Errorf("cannot encode Fixed: datum length exceeds size: %d > %d", count, size)
+			}
 			return append(buf, value...), nil
 		},
 	}
