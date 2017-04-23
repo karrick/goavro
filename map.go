@@ -26,12 +26,19 @@ func (st symtab) makeMapCodec(namespace string, schema interface{}) (*codec, err
 			var err error
 			var value interface{}
 
-			mapValues := make(map[string]interface{})
-
 			if value, buf, err = longDecoder(buf); err != nil {
 				return nil, buf, fmt.Errorf("cannot decode Map: cannot decode block count: %s", err)
 			}
 			blockCount := value.(int64)
+
+			// NOTE: While below RAM optimization not necessary, many encoders will encode all
+			// key-value pairs in a single block.  We can optimize amount of RAM allocated by
+			// runtime for the map by initializing the map for that number of pairs.
+			initialSize := blockCount
+			if initialSize < 0 {
+				initialSize = -initialSize
+			}
+			mapValues := make(map[string]interface{}, initialSize)
 
 			for blockCount != 0 {
 				if blockCount < 0 {

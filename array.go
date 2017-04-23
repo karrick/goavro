@@ -26,14 +26,19 @@ func (st symtab) makeArrayCodec(enclosingNamespace string, schema interface{}) (
 			var value interface{}
 			var err error
 
-			// NOTE: Because array values can be one or more block counts followed by their values,
-			// we cannot preallocate the arrayValues slice.
-			var arrayValues []interface{}
-
 			if value, buf, err = longDecoder(buf); err != nil {
 				return nil, buf, fmt.Errorf("cannot decode Array: cannot decode block count: %s", err)
 			}
 			blockCount := value.(int64)
+
+			// NOTE: While below RAM optimization not necessary, many encoders will encode all
+			// array items in a single block.  We can optimize amount of RAM allocated by
+			// runtime for the array by initializing the array for that number of items.
+			initialSize := blockCount
+			if initialSize < 0 {
+				initialSize = -initialSize
+			}
+			arrayValues := make([]interface{}, 0, initialSize)
 
 			for blockCount != 0 {
 				if blockCount < 0 {
