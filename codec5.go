@@ -19,6 +19,7 @@ type BinaryEncoder interface {
 type BinaryCoder interface {
 	BinaryDecoder
 	BinaryEncoder
+	v4 // goavro v4 API support
 }
 
 // codec stores function pointers for encoding and decoding Avro blobs according to their defined
