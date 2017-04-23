@@ -21,7 +21,7 @@ func (st symtab) makeArrayCodec(enclosingNamespace string, schema interface{}) (
 	}
 
 	return &codec{
-		name: &Name{"array", ""}, // ???
+		name: &Name{"array", nullNamespace},
 		binaryDecoder: func(buf []byte) (interface{}, []byte, error) {
 			var value interface{}
 			var err error

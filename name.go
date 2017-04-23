@@ -6,6 +6,8 @@ import (
 	"strings"
 )
 
+const nullNamespace = ""
+
 // ErrInvalidName is the error returned when one or more parts of an Avro name is invalid.
 type ErrInvalidName struct {
 	Message string
@@ -63,11 +65,11 @@ func NewName(name, namespace, enclosingNamespace string) (*Name, error) {
 		n.Namespace = name[:index]
 	} else {
 		// inputName does not contain a dot, therefore is not the full name
-		if namespace != "" {
+		if namespace != nullNamespace {
 			// if namespace provided in the schema in the same schema level, use it
 			n.FullName = namespace + "." + name
 			n.Namespace = namespace
-		} else if enclosingNamespace != "" {
+		} else if enclosingNamespace != nullNamespace {
 			// otherwise if enclosing namespace provided, use it
 			n.FullName = enclosingNamespace + "." + name
 			n.Namespace = enclosingNamespace
@@ -95,13 +97,13 @@ func newNameFromSchemaMap(enclosingNamespace string, schemaMap map[string]interf
 		return nil, errors.New("cannot create name: ought to have name key")
 	}
 	nameString, ok = name.(string)
-	if !ok || nameString == "" {
+	if !ok || nameString == nullNamespace {
 		return nil, fmt.Errorf("cannot create name: name value ought to be non-empty string; received: %T", name)
 	}
 	namespace, ok := schemaMap["namespace"]
 	if ok {
 		namespaceString, ok = namespace.(string)
-		if !ok || namespaceString == "" {
+		if !ok || namespaceString == nullNamespace {
 			return nil, fmt.Errorf("cannot crate name: namespace value ought to be non-empty string; received: %T", namespace)
 		}
 	}

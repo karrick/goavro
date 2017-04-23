@@ -38,7 +38,7 @@ func (st symtab) buildCodecForTypeDescribedBySlice(enclosingNamespace string, sc
 	}
 
 	return &codec{
-		name: &Name{"union", ""}, // ???
+		name: &Name{"union", nullNamespace},
 		binaryDecoder: func(buf []byte) (interface{}, []byte, error) {
 			var decoded interface{}
 			var err error

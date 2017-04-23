@@ -7,21 +7,21 @@ import (
 )
 
 func TestNameStartsInvalidCharacter(t *testing.T) {
-	_, err := NewName("&X", "org.foo", "")
+	_, err := NewName("&X", "org.foo", nullNamespace)
 	if _, ok := err.(ErrInvalidName); err == nil && !ok {
 		t.Errorf("Actual: %#v, Expected: %#v", err, ErrInvalidName{"start with [A-Za-z_]"})
 	}
 }
 
 func TestNameContainsInvalidCharacter(t *testing.T) {
-	_, err := NewName("X", "org.foo&bar", "")
+	_, err := NewName("X", "org.foo&bar", nullNamespace)
 	if _, ok := err.(ErrInvalidName); err == nil && !ok {
 		t.Errorf("Actual: %#v, Expected: %#v", err, ErrInvalidName{"start with [A-Za-z_]"})
 	}
 }
 
 func TestNameAndNamespaceProvided(t *testing.T) {
-	n, err := NewName("X", "org.foo", "")
+	n, err := NewName("X", "org.foo", nullNamespace)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -42,7 +42,7 @@ func TestNameAndNamespaceProvided(t *testing.T) {
 }
 
 func TestNameWithDotIgnoresNamespace(t *testing.T) {
-	n, err := NewName("org.bar.X", "some.ignored.namespace", "")
+	n, err := NewName("org.bar.X", "some.ignored.namespace", nullNamespace)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,7 +62,7 @@ func TestNameWithDotIgnoresNamespace(t *testing.T) {
 }
 
 func TestNameWithoutDotsButWithEmptyNamespaceAndEnclosingName(t *testing.T) {
-	n, err := NewName("X", "", "org.foo")
+	n, err := NewName("X", nullNamespace, "org.foo")
 	if err != nil {
 		t.Fatal(err)
 	}

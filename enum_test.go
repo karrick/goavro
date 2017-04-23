@@ -50,11 +50,11 @@ func TestEnumSymbolsHasInvalidString(t *testing.T) {
 }
 
 func TestEnumDecodedEmptyBuf(t *testing.T) {
-	codec, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`)
+	c, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	value, buf, err := codec.BinaryDecode(nil)
+	value, buf, err := c.BinaryDecode(nil)
 	if value != nil {
 		t.Errorf("Actual: %#v; Expected: %#v", value, nil)
 	}
@@ -67,12 +67,12 @@ func TestEnumDecodedEmptyBuf(t *testing.T) {
 }
 
 func TestEnumDecodedIndexLessThanZero(t *testing.T) {
-	codec, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`)
+	c, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`)
 	if err != nil {
 		t.Fatal(err)
 	}
 	originalBuf := []byte{byte(1)}
-	value, buf, err := codec.BinaryDecode(originalBuf)
+	value, buf, err := c.BinaryDecode(originalBuf)
 	if value != nil {
 		t.Errorf("Actual: %#v; Expected: %#v", value, nil)
 	}
@@ -85,12 +85,12 @@ func TestEnumDecodedIndexLessThanZero(t *testing.T) {
 }
 
 func TestEnumDecodedIndexTooLarge(t *testing.T) {
-	codec, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`)
+	c, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`)
 	if err != nil {
 		t.Fatal(err)
 	}
 	originalBuf := []byte{byte(4)}
-	value, buf, err := codec.BinaryDecode(originalBuf)
+	value, buf, err := c.BinaryDecode(originalBuf)
 	if value != nil {
 		t.Errorf("Actual: %#v; Expected: %#v", value, nil)
 	}
@@ -103,11 +103,11 @@ func TestEnumDecodedIndexTooLarge(t *testing.T) {
 }
 
 func TestEnumDecodedIndexZero(t *testing.T) {
-	codec, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`)
+	c, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	value, buf, err := codec.BinaryDecode([]byte{byte(0)})
+	value, buf, err := c.BinaryDecode([]byte{byte(0)})
 	if actual, expected := value.(string), "alpha"; actual != expected {
 		t.Errorf("Actual: %#v; Expected: %#v", actual, expected)
 	}
@@ -120,11 +120,11 @@ func TestEnumDecodedIndexZero(t *testing.T) {
 }
 
 func TestEnumDecodedIndexLargestValid(t *testing.T) {
-	codec, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`)
+	c, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	value, buf, err := codec.BinaryDecode([]byte{byte(2)})
+	value, buf, err := c.BinaryDecode([]byte{byte(2)})
 	if actual, expected := value.(string), "bravo"; actual != expected {
 		t.Errorf("Actual: %#v; Expected: %#v", actual, expected)
 	}
@@ -137,11 +137,11 @@ func TestEnumDecodedIndexLargestValid(t *testing.T) {
 }
 
 func TestEnumEncodedDatumNotString(t *testing.T) {
-	codec, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`)
+	c, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	buf, err := codec.BinaryEncode(nil, 13)
+	buf, err := c.BinaryEncode(nil, 13)
 	if err == nil {
 		t.Errorf("Actual: %#v; Expected: %#v", err, "non-nil")
 	}
@@ -151,11 +151,11 @@ func TestEnumEncodedDatumNotString(t *testing.T) {
 }
 
 func TestEnumEncodedDatumNotInEnum(t *testing.T) {
-	codec, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`)
+	c, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	buf, err := codec.BinaryEncode(nil, "charlie")
+	buf, err := c.BinaryEncode(nil, "charlie")
 	if err == nil {
 		t.Errorf("Actual: %#v; Expected: %#v", err, "non-nil")
 	}
@@ -165,11 +165,11 @@ func TestEnumEncodedDatumNotInEnum(t *testing.T) {
 }
 
 func TestEnumEncodedDatumGood(t *testing.T) {
-	codec, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`)
+	c, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	buf, err := codec.BinaryEncode(nil, "bravo")
+	buf, err := c.BinaryEncode(nil, "bravo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -179,11 +179,11 @@ func TestEnumEncodedDatumGood(t *testing.T) {
 }
 
 func TestEnumNamedTypeSimple(t *testing.T) {
-	codec, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`)
+	c, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	buf, err := codec.BinaryEncode(nil, "bravo")
+	buf, err := c.BinaryEncode(nil, "bravo")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,11 +193,11 @@ func TestEnumNamedTypeSimple(t *testing.T) {
 }
 
 func TestEnumNamedTypeFullName(t *testing.T) {
-	codec, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`)
+	c, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`)
 	if err != nil {
 		t.Fatal(err)
 	}
-	buf, err := codec.BinaryEncode(nil, "bravo")
+	buf, err := c.BinaryEncode(nil, "bravo")
 	if err != nil {
 		t.Fatal(err)
 	}

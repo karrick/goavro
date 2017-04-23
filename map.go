@@ -21,7 +21,7 @@ func (st symtab) makeMapCodec(namespace string, schema interface{}) (*codec, err
 	}
 
 	return &codec{
-		name: &Name{"map", ""}, // ???
+		name: &Name{"map", nullNamespace},
 		binaryDecoder: func(buf []byte) (interface{}, []byte, error) {
 			var err error
 			var value interface{}

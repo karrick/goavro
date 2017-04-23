@@ -24,7 +24,6 @@ func (st symtab) makeFixedCodec(enclosingNamespace string, schema interface{}) (
 	size := int32(s2)
 
 	c := &codec{
-		namedType: true,
 		binaryDecoder: func(buf []byte) (interface{}, []byte, error) {
 			if int32(len(buf)) < size {
 				return nil, buf, fmt.Errorf("cannot decode Fixed: size exceeds remaining buffer length: %d > %d", size, len(buf))
