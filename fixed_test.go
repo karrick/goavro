@@ -130,3 +130,22 @@ func TestFixedEncodeByteSlice(t *testing.T) {
 		t.Errorf("Actual: %#v; Expected: %#v", err, nil)
 	}
 }
+
+func TestFixedNameCanBeUsedLater(t *testing.T) {
+	c, err := goavro.NewCodec(`{"type":"record","name":"record1","fields":[
+{"name":"field1","type":{"type":"fixed","name":"fixed_4","size":4}},
+{"name":"field2","type":"fixed_4"}]}`)
+	if err != nil {
+		t.Errorf("Actual: %#v; Expected: %#v", err, nil)
+	}
+	buf, err := c.BinaryEncode(nil, map[string]interface{}{
+		"field1": "abcd",
+		"field2": "efgh",
+	})
+	if actual, expected := string(buf), "abcdefgh"; actual != expected {
+		t.Errorf("Actual: %#v; Expected: %#v", actual, expected)
+	}
+	if err != nil {
+		t.Errorf("Actual: %#v; Expected: %#v", err, nil)
+	}
+}
