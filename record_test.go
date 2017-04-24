@@ -50,6 +50,13 @@ func TestRecordFieldsHasInvalidSchema(t *testing.T) {
 	}
 }
 
+func TestRecordFieldsHasDuplicateName(t *testing.T) {
+	_, err := goavro.NewCodec(`{"type":"record","name":"record1","fields":[{"name":"field1","type":"string"},{"name":"field1","type":"int"}]}`)
+	if err == nil {
+		t.Errorf("Actual: %#v; Expected: %#v", err, "non-nil")
+	}
+}
+
 func TestRecordDecodedEmptyBuf(t *testing.T) {
 	codec, err := goavro.NewCodec(`{"type":"record","name":"foo","fields":[{"name":"field1","type":"int"}]}`)
 	if err != nil {
