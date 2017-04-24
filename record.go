@@ -26,6 +26,7 @@ func (st symtab) makeRecordCodec(enclosingNamespace string, schema interface{}) 
 
 	fieldCodecs := make([]*codec, len(fieldSchemas))
 	fieldNames := make([]string, len(fieldSchemas))
+	fieldNameDuplicateCheck := make(map[string]struct{})
 	for i, fieldSchema := range fieldSchemas {
 		// fmt.Printf("fieldSchema: %v\n", fieldSchema)
 		fieldSchemaMap, ok := fieldSchema.(map[string]interface{})
@@ -34,13 +35,18 @@ func (st symtab) makeRecordCodec(enclosingNamespace string, schema interface{}) 
 		}
 		fieldCodec, err := st.buildCodecForTypeDescribedByMap(recordName.Namespace, fieldSchemaMap) // field's enclosing namespace
 		if err != nil {
-			return nil, fmt.Errorf("cannot create Record codec: cannot create codec for record field: %d; %s", i, err)
+			return nil, fmt.Errorf("cannot create Record codec: cannot create codec for record field: %d; %s", i+1, err)
 		}
 
 		// field's full name, e.g., "com.example.X", ought to be registered with the symbol table;
 		// however, field short name ought to be used for encoding or decoding
 		st.registerCodec(fieldCodec, fieldSchemaMap, recordName.Namespace)
-		fieldNames[i] = fieldCodec.name.short()
+		fieldName := fieldCodec.name.short()
+		if _, ok := fieldNameDuplicateCheck[fieldName]; ok {
+			return nil, fmt.Errorf("cannot create Record codec: duplicate field name for field: %d; %s", i+1, fieldName)
+		}
+		fieldNameDuplicateCheck[fieldName] = struct{}{}
+		fieldNames[i] = fieldName
 
 		fieldCodecs[i] = fieldCodec
 	}
