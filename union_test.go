@@ -21,9 +21,10 @@ func TestUnion(t *testing.T) {
 }
 
 func TestUnionRejectInvalidType(t *testing.T) {
-	t.Skip("TODO: ensure these returns error")
-	testCodecBidirectional(t, `["null","long"]`, goavro.Union("int", 3), []byte("\x02\x06"))
-	testCodecBidirectional(t, `["null","int","long","float"]`, goavro.Union("double", float64(3.5)), []byte("\x06\x00\x00\x60\x40"))
+	testBadDatumType(t, `["null","long"]`, 3)
+	testBadDatumType(t, `["null","int","long","float"]`, float64(3.5))
+	testBadDatumType(t, `["null","long"]`, goavro.Union("int", 3))
+	testBadDatumType(t, `["null","int","long","float"]`, goavro.Union("double", float64(3.5)))
 }
 
 func TestUnionWillCoerceTypeIfPossible(t *testing.T) {

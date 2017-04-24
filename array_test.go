@@ -27,6 +27,6 @@ func TestArrayReceiveSliceIntInterface(t *testing.T) {
 }
 
 func TestArrayBadType(t *testing.T) {
-	testBadDatumType(t, `{"type":"array","items":"int"}`, []string{"1"}, nil)
-	testBadDatumType(t, `{"type":"array","items":"int"}`, []string{"1", "2"}, nil)
+	testBadDatumType(t, `{"type":"array","items":"int"}`, []string{"1"})
+	testBadDatumType(t, `{"type":"array","items":"int"}`, []string{"1", "2"})
 }
