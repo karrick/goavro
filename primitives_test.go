@@ -19,8 +19,8 @@ func TestNewCodecInvalidType(t *testing.T) {
 }
 
 func TestBoolean(t *testing.T) {
-	testBadDatumType(t, "boolean", 0, nil)
-	testBadDatumType(t, "boolean", 1, nil)
+	testBadDatumType(t, "boolean", 0)
+	testBadDatumType(t, "boolean", 1)
 	testCodecBufferUnderflow(t, "boolean", []byte{0}, false)
 	testCodecBufferUnderflow(t, "boolean", nil, true)
 	testCodecBidirectional(t, "boolean", false, []byte{0})
@@ -28,7 +28,7 @@ func TestBoolean(t *testing.T) {
 }
 
 func TestBytes(t *testing.T) {
-	testBadDatumType(t, "bytes", 13, nil)
+	testBadDatumType(t, "bytes", 13)
 	testCodecBufferUnderflow(t, "bytes", []byte{0}, false)
 	testCodecBufferUnderflow(t, "bytes", nil, true)
 	testCodecBidirectional(t, "bytes", []byte(""), []byte("\x00"))
@@ -36,7 +36,7 @@ func TestBytes(t *testing.T) {
 }
 
 func TestDouble(t *testing.T) {
-	testBadDatumType(t, "double", "some string", nil)
+	testBadDatumType(t, "double", "some string")
 	testCodecBufferUnderflow(t, "double", []byte{0, 0, 0, 0, 0, 0, 0, 0}, false)
 	testCodecBufferUnderflow(t, "double", []byte{0, 0, 0, 0, 0, 0, 0}, true)
 	testCodecBidirectional(t, "double", 3.5, []byte("\x00\x00\x00\x00\x00\x00\f@"))
@@ -46,7 +46,7 @@ func TestDouble(t *testing.T) {
 }
 
 func TestFloat(t *testing.T) {
-	testBadDatumType(t, "float", "some string", nil)
+	testBadDatumType(t, "float", "some string")
 	testCodecBufferUnderflow(t, "float", []byte{0, 0, 0, 0}, false)
 	testCodecBufferUnderflow(t, "float", []byte{0, 0, 0}, true)
 	testCodecBidirectional(t, "float", 3.5, []byte("\x00\x00\x60\x40"))
@@ -56,7 +56,7 @@ func TestFloat(t *testing.T) {
 }
 
 func TestInt(t *testing.T) {
-	testBadDatumType(t, "int", "some string", nil)
+	testBadDatumType(t, "int", "some string")
 	testCodecBufferUnderflow(t, "int", []byte{1}, false)
 	testCodecBufferUnderflow(t, "int", nil, true)
 	testCodecBidirectional(t, "int", -1, []byte{0x01})
@@ -75,7 +75,7 @@ func TestInt(t *testing.T) {
 }
 
 func TestLong(t *testing.T) {
-	testBadDatumType(t, "long", "some string", nil)
+	testBadDatumType(t, "long", "some string")
 	testCodecBufferUnderflow(t, "long", []byte{1}, false)
 	testCodecBufferUnderflow(t, "long", nil, true)
 	testCodecBidirectional(t, "long", (1<<63)-1, []byte{0xfe, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0xff, 0x1})
@@ -97,13 +97,13 @@ func TestLong(t *testing.T) {
 }
 
 func TestNull(t *testing.T) {
-	testBadDatumType(t, "null", false, nil)
+	testBadDatumType(t, "null", false)
 	testCodecBufferUnderflow(t, "null", nil, false)
 	testCodecBidirectional(t, "null", nil, nil)
 }
 
 func TestString(t *testing.T) {
-	testBadDatumType(t, "string", 42, nil)
+	testBadDatumType(t, "string", 42)
 	testCodecBufferUnderflow(t, "string", []byte{0}, false)
 	testCodecBufferUnderflow(t, "string", nil, true)
 	testCodecBidirectional(t, "string", "", []byte("\x00"))

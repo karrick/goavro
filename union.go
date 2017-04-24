@@ -71,7 +71,7 @@ func (st symtab) buildCodecForTypeDescribedBySlice(enclosingNamespace string, sc
 				return longEncoder(buf, index)
 			case map[string]interface{}:
 				if len(v) != 1 {
-					return buf, fmt.Errorf("cannot encode Union value: non-nil Union values ought to be specified with Go map[string]interface{}, with single key equal to type name, and value equal to datum value: %v; %T", allowedTypes, datum)
+					return buf, fmt.Errorf("cannot encode Union value: non-nil Union values ought to be specified with Go map[string]interface{}, with single key equal to type name, and value equal to datum value: %v; received: %T", allowedTypes, datum)
 				}
 				// will execute exactly once
 				for key, value := range v {
@@ -84,7 +84,7 @@ func (st symtab) buildCodecForTypeDescribedBySlice(enclosingNamespace string, sc
 					return c.binaryEncoder(buf, value)
 				}
 			}
-			return buf, fmt.Errorf("cannot encode Union value: non-nil Union values ought to be specified with Go map[string]interface{}, with single key equal to type name, and value equal to datum value: %v; %T", allowedTypes, datum)
+			return buf, fmt.Errorf("cannot encode Union value: non-nil Union values ought to be specified with Go map[string]interface{}, with single key equal to type name, and value equal to datum value: %v; received: %T", allowedTypes, datum)
 		},
 	}, nil
 }

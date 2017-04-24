@@ -9,7 +9,8 @@ import (
 	"github.com/karrick/goavro"
 )
 
-func testBadDatumType(t *testing.T, schema string, datum interface{}, expected []byte) {
+func testBadDatumType(t *testing.T, schema string, datum interface{}) {
+	var expected []byte
 	codec, err := goavro.NewCodec(schema)
 	if err != nil {
 		t.Fatal(err)
