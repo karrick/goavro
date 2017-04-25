@@ -3,6 +3,7 @@ package goavro
 import (
 	"encoding/json"
 	"fmt"
+	"sort"
 )
 
 // BinaryDecoder interface describes types that expose the Decode method.
@@ -51,7 +52,15 @@ func NewCodec(schemaSpecification string) (BinaryCoder, error) {
 		return nil, fmt.Errorf("cannot unmarshal JSON: %s", err)
 	}
 
-	return st.buildCodec(nullNamespace, schema)
+	c, err := st.buildCodec(nullNamespace, schema)
+	if false {
+		tns := st.typeNames()
+		sort.Strings(tns)
+		for _, tn := range tns {
+			fmt.Println(tn)
+		}
+	}
+	return c, err
 }
 
 // BinaryDecode decodes the provided byte slice in accordance with the Codec's Avro schema.  On success,
