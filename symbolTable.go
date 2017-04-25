@@ -89,3 +89,11 @@ func (st symtab) registerCodec(c *codec, schemaMap map[string]interface{}, enclo
 	c.name = n // reach back into codec and set its name
 	return nil
 }
+
+func (st symtab) typeNames() []string {
+	var keys []string
+	for k := range st.cache {
+		keys = append(keys, k)
+	}
+	return keys
+}

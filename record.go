@@ -28,20 +28,24 @@ func (st symtab) makeRecordCodec(enclosingNamespace string, schema interface{}) 
 	fieldNames := make([]string, len(fieldSchemas))
 	fieldNameDuplicateCheck := make(map[string]struct{})
 	for i, fieldSchema := range fieldSchemas {
-		// fmt.Printf("fieldSchema: %v\n", fieldSchema)
 		fieldSchemaMap, ok := fieldSchema.(map[string]interface{})
 		if !ok {
 			return nil, fmt.Errorf("cannot create Record codec: field schema ought to be Go map[string]interface{}; received: %T", fieldSchema)
 		}
-		fieldCodec, err := st.buildCodecForTypeDescribedByMap(recordName.Namespace, fieldSchemaMap) // field's enclosing namespace
+
+		// NOTE: field names are not registered in the symbol table, because field names are not
+		// individually addressable codecs.
+
+		fieldCodec, err := st.buildCodecForTypeDescribedByMap(nullNamespace, fieldSchemaMap)
 		if err != nil {
 			return nil, fmt.Errorf("cannot create Record codec: cannot create codec for record field: %d; %s", i+1, err)
 		}
-
-		// field's full name, e.g., "com.example.X", ought to be registered with the symbol table;
-		// however, field short name ought to be used for encoding or decoding
-		st.registerCodec(fieldCodec, fieldSchemaMap, recordName.Namespace)
-		fieldName := fieldCodec.name.short()
+		// However, when creating a full name for the field name, be sure to use record's namespace
+		n, err := newNameFromSchemaMap(recordName.Namespace, fieldSchemaMap)
+		if err != nil {
+			return nil, fmt.Errorf("cannot create Record codec: invalid name for field: %d; %v", i+1, fieldSchemaMap)
+		}
+		fieldName := n.short()
 		if _, ok := fieldNameDuplicateCheck[fieldName]; ok {
 			return nil, fmt.Errorf("cannot create Record codec: duplicate field name for field: %d; %s", i+1, fieldName)
 		}
