@@ -35,7 +35,7 @@ type v4 interface {
 // are too high.  If the old behavior is desired, then stick to using the previous v4 engine.
 //
 // Deprecated: Use BinaryDecode instead.
-func (c codec) Decode(ior io.Reader) (interface{}, error) {
+func (c *Codec) Decode(ior io.Reader) (interface{}, error) {
 	buf, err := ioutil.ReadAll(ior)
 	if err != nil {
 		return nil, err
@@ -50,7 +50,7 @@ func (c codec) Decode(ior io.Reader) (interface{}, error) {
 // into the Codec's schema.
 //
 // Deprecated: Use BinaryEncode instead.
-func (c codec) Encode(iow io.Writer, datum interface{}) error {
+func (c *Codec) Encode(iow io.Writer, datum interface{}) error {
 	buf, err := c.BinaryEncode(nil, datum)
 	if err != nil {
 		return err
