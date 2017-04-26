@@ -13,32 +13,32 @@ func Union(name string, datum interface{}) interface{} {
 	return map[string]interface{}{name: datum}
 }
 
-func (st symtab) buildCodecForTypeDescribedBySlice(enclosingNamespace string, schemaArray []interface{}) (*codec, error) {
+func buildCodecForTypeDescribedBySlice(st map[string]*Codec, enclosingNamespace string, schemaArray []interface{}) (*Codec, error) {
 	if len(schemaArray) == 0 {
 		return nil, errors.New("cannot create Union codec without any members")
 	}
 
 	allowedTypes := make([]string, len(schemaArray)) // used for error reporting when encoder receives invalid datum type
-	codecFromIndex := make([]*codec, len(schemaArray))
+	codecFromIndex := make([]*Codec, len(schemaArray))
 	indexFromName := make(map[string]int, len(schemaArray))
 
 	for i, unionMemberSchema := range schemaArray {
-		unionMemberCodec, err := st.buildCodec(enclosingNamespace, unionMemberSchema)
+		unionMemberCodec, err := buildCodec(st, enclosingNamespace, unionMemberSchema)
 		if err != nil {
 			// TODO: error message needs more surrounding context of where we are in schema
 			return nil, fmt.Errorf("cannot create Union codec for item: %d; %s", i, err)
 		}
-		fullName := unionMemberCodec.name.FullName
+		fullName := unionMemberCodec.typeName.fullName
 		if _, ok := indexFromName[fullName]; ok {
-			return nil, fmt.Errorf("cannot create Union: duplicate type: %s", unionMemberCodec.name)
+			return nil, fmt.Errorf("cannot create Union: duplicate type: %s", unionMemberCodec.typeName)
 		}
 		indexFromName[fullName] = i
 		allowedTypes[i] = fullName
 		codecFromIndex[i] = unionMemberCodec
 	}
 
-	return &codec{
-		name: &Name{"union", nullNamespace},
+	return &Codec{
+		typeName: &name{"union", nullNamespace},
 		binaryDecoder: func(buf []byte) (interface{}, []byte, error) {
 			var decoded interface{}
 			var err error

@@ -6,56 +6,27 @@ import (
 	"github.com/karrick/goavro"
 )
 
-func TestFixedOughtHaveNameKey(t *testing.T) {
-	_, err := goavro.NewCodec(`{"type":"fixed","size":13}`)
-	if err == nil {
-		t.Errorf("Actual: %#v; Expected: %#v", err, "non-nil")
-	}
+func TestSchemaFixed(t *testing.T) {
+	testSchemaValid(t, `{"type": "fixed", "size": 16, "name": "md5"}`)
 }
 
-func TestFixedNameOughtToBeString(t *testing.T) {
-	_, err := goavro.NewCodec(`{"type":"fixed","size":13,"name":13}`)
-	if err == nil {
-		t.Errorf("Actual: %#v; Expected: %#v", err, "non-nil")
-	}
+func TestFixedName(t *testing.T) {
+	testSchemaInvalid(t, `{"type":"fixed","size":16}`, "Fixed ought to have valid name: schema ought to have name key")
+	testSchemaInvalid(t, `{"type":"fixed","name":3}`, "Fixed ought to have valid name: schema name ought to be non-empty string")
+	testSchemaInvalid(t, `{"type":"fixed","name":""}`, "Fixed ought to have valid name: schema name ought to be non-empty string")
+	testSchemaInvalid(t, `{"type":"fixed","name":"&foo","size":16}`, "Fixed ought to have valid name: schema name ought to start with")
+	testSchemaInvalid(t, `{"type":"fixed","name":"foo&","size":16}`, "Fixed ought to have valid name: schema name ought to have second and remaining")
 }
 
-func TestFixedNameInvalid(t *testing.T) {
-	_, err := goavro.NewCodec(`{"type":"fixed","size":13,"name":"&invalid"}`)
-	if err == nil {
-		t.Errorf("Actual: %#v; Expected: %#v", err, "non-nil")
-	}
-}
-
-func TestFixedOughtHaveSizeKey(t *testing.T) {
-	_, err := goavro.NewCodec(`{"type":"fixed","name":"foo"}`)
-	if err == nil {
-		t.Errorf("Actual: %#v; Expected: %#v", err, "non-nil")
-	}
-}
-
-func TestFixedSizeOughtToBeNumber(t *testing.T) {
-	_, err := goavro.NewCodec(`{"type":"fixed","name":"foo","size":"13"}`)
-	if err == nil {
-		t.Errorf("Actual: %#v; Expected: %#v", err, "non-nil")
-	}
+func TestFixedSize(t *testing.T) {
+	testSchemaInvalid(t, `{"type":"fixed","name":"foo"}`, `Fixed "foo" ought to have size key`)
+	testSchemaInvalid(t, `{"type":"fixed","name":"foo","size":"16"}`, `Fixed "foo" size ought to be number greater than zero`)
+	testSchemaInvalid(t, `{"type":"fixed","name":"foo","size":-1}`, `Fixed "foo" size ought to be number greater than zero`)
+	testSchemaInvalid(t, `{"type":"fixed","name":"foo","size":0}`, `Fixed "foo" size ought to be number greater than zero`)
 }
 
 func TestFixedDecodeBufferUnderflow(t *testing.T) {
-	c, err := goavro.NewCodec(`{"type":"fixed","name":"foo","size":13}`)
-	if err != nil {
-		t.Errorf("Actual: %#v; Expected: %#v", err, nil)
-	}
-	val, buf, err := c.BinaryDecode([]byte("ab"))
-	if val != nil {
-		t.Errorf("Actual: %#v; Expected: %#v", val, "non-nil")
-	}
-	if actual, expected := string(buf), "ab"; actual != expected {
-		t.Errorf("Actual: %#v; Expected: %#v", actual, expected)
-	}
-	if err == nil {
-		t.Errorf("Actual: %#v; Expected: %#v", err, "non-nil")
-	}
+	testBinaryDecodeFail(t, `{"type":"fixed","name":"md5","size":16}`, nil, "buffer underflow")
 }
 
 func TestFixedDecodeWithExtra(t *testing.T) {
@@ -76,76 +47,15 @@ func TestFixedDecodeWithExtra(t *testing.T) {
 }
 
 func TestFixedEncodeUnsupportedType(t *testing.T) {
-	c, err := goavro.NewCodec(`{"type":"fixed","name":"foo","size":4}`)
-	if err != nil {
-		t.Errorf("Actual: %#v; Expected: %#v", err, nil)
-	}
-	buf, err := c.BinaryEncode(nil, 13)
-	if actual, expected := string(buf), ""; actual != expected {
-		t.Errorf("Actual: %#v; Expected: %#v", actual, expected)
-	}
-	if err == nil {
-		t.Errorf("Actual: %#v; Expected: %#v", err, "non-nil")
-	}
+	testBinaryEncodeFailBadDatumType(t, `{"type":"fixed","name":"foo","size":4}`, 13)
 }
 
-func TestFixedEncodeTooLong(t *testing.T) {
-	c, err := goavro.NewCodec(`{"type":"fixed","name":"foo","size":4}`)
-	if err != nil {
-		t.Errorf("Actual: %#v; Expected: %#v", err, nil)
-	}
-	buf, err := c.BinaryEncode(nil, "abcde")
-	if actual, expected := string(buf), ""; actual != expected {
-		t.Errorf("Actual: %#v; Expected: %#v", actual, expected)
-	}
-	if err == nil {
-		t.Errorf("Actual: %#v; Expected: %#v", err, "non-nil")
-	}
+func TestFixedEncodeWrongSize(t *testing.T) {
+	testBinaryEncodeFail(t, `{"type":"fixed","name":"foo","size":4}`, "abcde", "datum length ought to equal size")
+	testBinaryEncodeFail(t, `{"type":"fixed","name":"foo","size":4}`, "abc", "datum length ought to equal size")
 }
 
-func TestFixedEncodeString(t *testing.T) {
-	c, err := goavro.NewCodec(`{"type":"fixed","name":"foo","size":4}`)
-	if err != nil {
-		t.Errorf("Actual: %#v; Expected: %#v", err, nil)
-	}
-	buf, err := c.BinaryEncode(nil, "abcd")
-	if actual, expected := string(buf), "abcd"; actual != expected {
-		t.Errorf("Actual: %#v; Expected: %#v", actual, expected)
-	}
-	if err != nil {
-		t.Errorf("Actual: %#v; Expected: %#v", err, nil)
-	}
-}
-
-func TestFixedEncodeByteSlice(t *testing.T) {
-	c, err := goavro.NewCodec(`{"type":"fixed","name":"foo","size":4}`)
-	if err != nil {
-		t.Errorf("Actual: %#v; Expected: %#v", err, nil)
-	}
-	buf, err := c.BinaryEncode(nil, []byte("abcd"))
-	if actual, expected := string(buf), "abcd"; actual != expected {
-		t.Errorf("Actual: %#v; Expected: %#v", actual, expected)
-	}
-	if err != nil {
-		t.Errorf("Actual: %#v; Expected: %#v", err, nil)
-	}
-}
-
-func TestFixedNameCanBeUsedLater(t *testing.T) {
-	c, err := goavro.NewCodec(`{"type":"record","name":"record1","fields":[
-{"name":"field1","type":{"type":"fixed","name":"fixed_4","size":4}},
-{"name":"field2","type":"fixed_4"}]}`)
-	if err != nil {
-		t.Errorf("Actual: %#v; Expected: %#v", err, nil)
-	}
-	buf, err := c.BinaryEncode(nil, map[string]interface{}{
-		"field1": "abcd",
-		"field2": "efgh",
-	})
-	if actual, expected := string(buf), "abcdefgh"; actual != expected {
-		t.Errorf("Actual: %#v; Expected: %#v", actual, expected)
-	}
-	if err != nil {
-		t.Errorf("Actual: %#v; Expected: %#v", err, nil)
-	}
+func TestFixedEncode(t *testing.T) {
+	testBinaryCodecPass(t, `{"type":"fixed","name":"foo","size":4}`, []byte("abcd"), []byte("abcd"))
+	testBinaryEncodePass(t, `{"type":"fixed","name":"foo","size":4}`, "abcd", []byte("abcd")) // decodes to bytes rather than string
 }

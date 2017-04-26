@@ -5,29 +5,28 @@ import (
 	"reflect"
 )
 
-func (st symtab) makeArrayCodec(enclosingNamespace string, schema interface{}) (*codec, error) {
-	schemaMap, ok := schema.(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("cannot create Array codec: expected: map[string]interface{}; received: %T", schema)
+func makeArrayCodec(st map[string]*Codec, enclosingNamespace string, schemaMap map[string]interface{}) (*Codec, error) {
+	if debugTypeNames {
+		fmt.Printf("makeArrayCodec(%v)\n", schemaMap)
 	}
 	// array type must have items
-	v, ok := schemaMap["items"]
+	itemSchema, ok := schemaMap["items"]
 	if !ok {
-		return nil, fmt.Errorf("cannot create Array codec: ought to have items key")
+		return nil, fmt.Errorf("Array ought to have items key")
 	}
-	valuesCodec, err := st.buildCodec(enclosingNamespace, v)
+	itemCodec, err := buildCodec(st, enclosingNamespace, itemSchema)
 	if err != nil {
-		return nil, fmt.Errorf("cannot create Array codec: cannot create codec for specified items type: %s", err)
+		return nil, fmt.Errorf("Array items ought to be valid Avro type: %s", err)
 	}
 
-	return &codec{
-		name: &Name{"array", nullNamespace},
+	return &Codec{
+		typeName: &name{"array", nullNamespace},
 		binaryDecoder: func(buf []byte) (interface{}, []byte, error) {
 			var value interface{}
 			var err error
 
 			if value, buf, err = longDecoder(buf); err != nil {
-				return nil, buf, fmt.Errorf("cannot decode Array: cannot decode block count: %s", err)
+				return nil, buf, fmt.Errorf("Array: cannot decode block count: %s", err)
 			}
 			blockCount := value.(int64)
 
@@ -46,19 +45,19 @@ func (st symtab) makeArrayCodec(enclosingNamespace string, schema interface{}) (
 					// we have no use.  Read its value and discard.
 					blockCount = -blockCount // convert to its positive equivalent
 					if _, buf, err = longDecoder(buf); err != nil {
-						return nil, buf, fmt.Errorf("cannot decode Array: cannot decode block size: %s", err)
+						return nil, buf, fmt.Errorf("Array: cannot decode block size: %s", err)
 					}
 				}
 				// Decode `blockCount` datum values from buffer
 				for i := int64(0); i < blockCount; i++ {
-					if value, buf, err = valuesCodec.binaryDecoder(buf); err != nil {
-						return nil, buf, fmt.Errorf("cannot decode Array: cannot decode item: %d; %s", i, err)
+					if value, buf, err = itemCodec.binaryDecoder(buf); err != nil {
+						return nil, buf, fmt.Errorf("Array: cannot decode item %d; %s", i+1, err)
 					}
 					arrayValues = append(arrayValues, value)
 				}
 				// Decode next blockCount from buffer, because there may be more blocks
 				if value, buf, err = longDecoder(buf); err != nil {
-					return nil, buf, fmt.Errorf("cannot decode Array: cannot decode block count: %s", err)
+					return nil, buf, fmt.Errorf("Array: cannot decode block count: %s", err)
 				}
 				blockCount = value.(int64)
 			}
@@ -73,7 +72,7 @@ func (st symtab) makeArrayCodec(enclosingNamespace string, schema interface{}) (
 				// NOTE: If given any sort of slice, zip values to items as convenience to client.
 				v := reflect.ValueOf(datum)
 				if v.Kind() != reflect.Slice {
-					return buf, fmt.Errorf("cannot encode Array: received: %T", datum)
+					return buf, fmt.Errorf("Array: expected []interface{}; received: %T", datum)
 				}
 				// NOTE: Two better alternatives to the current algorithm are:
 				//   (1) mutate the reflection tuple underneath to convert the []int, for example,
@@ -88,8 +87,8 @@ func (st symtab) makeArrayCodec(enclosingNamespace string, schema interface{}) (
 			if len(arrayValues) > 0 {
 				buf, _ = longEncoder(buf, len(arrayValues))
 				for i, item := range arrayValues {
-					if buf, err = valuesCodec.binaryEncoder(buf, item); err != nil {
-						return buf, fmt.Errorf("cannot encode Array: cannot encode item: %d; %v; %s", i, item, err)
+					if buf, err = itemCodec.binaryEncoder(buf, item); err != nil {
+						return buf, fmt.Errorf("Array: cannot encode item %d; %v; %s", i+1, item, err)
 					}
 				}
 			}

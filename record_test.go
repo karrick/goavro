@@ -8,82 +8,106 @@ import (
 	"github.com/karrick/goavro"
 )
 
-func TestRecordMissingName(t *testing.T) {
-	_, err := goavro.NewCodec(`{"type":"record","fields":[{"name":"field1","type":"int"}]}`)
-	if err == nil {
-		t.Errorf("Actual: %#v; Expected: %#v", err, "non-nil")
-	}
+func TestRecordName(t *testing.T) {
+	testSchemaInvalid(t, `{"type":"record","fields":[{"name":"name","type":"string"},{"name":"age","type":"int"}]}`, "Record ought to have valid name: schema ought to have name key")
+	testSchemaInvalid(t, `{"type":"record","name":3}`, "Record ought to have valid name: schema name ought to be non-empty string")
+	testSchemaInvalid(t, `{"type":"record","name":""}`, "Record ought to have valid name: schema name ought to be non-empty string")
+	testSchemaInvalid(t, `{"type":"record","name":"&foo","fields":[{"name":"name","type":"string"},{"name":"age","type":"int"}]}`, "Record ought to have valid name: schema name ought to start with")
+	testSchemaInvalid(t, `{"type":"record","name":"foo&","fields":[{"name":"name","type":"string"},{"name":"age","type":"int"}]}`, "Record ought to have valid name: schema name ought to have second and remaining")
 }
 
-func TestRecordMissingFields(t *testing.T) {
-	_, err := goavro.NewCodec(`{"type":"record","name":"foo"}`)
-	if err == nil {
-		t.Errorf("Actual: %#v; Expected: %#v", err, "non-nil")
-	}
+func TestRecordFields(t *testing.T) {
+	testSchemaInvalid(t, `{"type":"record","name":"r1"}`, `Record "r1" ought to have fields key`)
+	testSchemaInvalid(t, `{"type":"record","name":"r1","fields":3}`, `Record "r1" fields ought to be non-empty array`)
+	testSchemaInvalid(t, `{"type":"record","name":"r1","fields":[]}`, `Record "r1" fields ought to be non-empty array`)
 }
 
-func TestRecordFieldsNotSlice(t *testing.T) {
-	_, err := goavro.NewCodec(`{"type":"record","name":"foo","fields":3}`)
-	if err == nil {
-		t.Errorf("Actual: %#v; Expected: %#v", err, "non-nil")
-	}
+func TestRecordFieldInvalid(t *testing.T) {
+	testSchemaInvalid(t, `{"type":"record","name":"r1","fields":[3]}`, `Record "r1" field 1 ought to be valid Avro named type`)
+	testSchemaInvalid(t, `{"type":"record","name":"r1","fields":[""]}`, `Record "r1" field 1 ought to be valid Avro named type`)
+	testSchemaInvalid(t, `{"type":"record","name":"r1","fields":[{}]}`, `Record "r1" field 1 ought to be valid Avro named type`)
+	testSchemaInvalid(t, `{"type":"record","name":"r1","fields":[{"type":"int"}]}`, `Record "r1" field 1 ought to have valid name`)
+	testSchemaInvalid(t, `{"type":"record","name":"r1","fields":[{"name":"f1"}]}`, `Record "r1" field 1 ought to be valid Avro named type`)
+	testSchemaInvalid(t, `{"type":"record","name":"r1","fields":[{"name":"f1","type":"integer"}]}`, `Record "r1" field 1 ought to be valid Avro named type`)
+	testSchemaInvalid(t, `{"type":"record","name":"r1","fields":[{"name":"f1","type":"int"},{"name":"f1","type":"long"}]}`, `Record "r1" field 2 ought to have unique name`)
 }
 
-func TestRecordFieldsNotSliceOfMaps(t *testing.T) {
-	_, err := goavro.NewCodec(`{"type":"record","name":"foo","fields":[3]}`)
-	if err == nil {
-		t.Errorf("Actual: %#v; Expected: %#v", err, "non-nil")
-	}
+func TestSchemaRecord(t *testing.T) {
+	testSchemaValid(t, `{
+  "name": "person",
+  "type": "record",
+  "fields": [
+    {
+      "name": "height",
+      "type": "long"
+    },
+    {
+      "name": "weight",
+      "type": "long"
+    },
+    {
+      "name": "name",
+      "type": "string"
+    }
+  ]
+}`)
 }
 
-func TestRecordFieldsEmpty(t *testing.T) {
-	_, err := goavro.NewCodec(`{"type":"record","name":"foo","fields":[]}`)
-	if err == nil {
-		t.Errorf("Actual: %#v; Expected: %#v", err, "non-nil")
-	}
+func TestSchemaRecordFieldWithDefaults(t *testing.T) {
+	testSchemaValid(t, `{
+  "name": "person",
+  "type": "record",
+  "fields": [
+    {
+      "name": "height",
+      "type": "long"
+    },
+    {
+      "name": "weight",
+      "type": "long"
+    },
+    {
+      "name": "name",
+      "type": "string"
+    },
+    {
+      "name": "hacker",
+      "type": "boolean",
+      "default": false
+    }
+  ]
+}`)
 }
 
-func TestRecordFieldsHasInvalidSchema(t *testing.T) {
-	_, err := goavro.NewCodec(`{"type":"record","name":"foo","fields":[{"invalid"}]}`)
-	if err == nil {
-		t.Errorf("Actual: %#v; Expected: %#v", err, "non-nil")
-	}
-}
-
-func TestRecordFieldsHasDuplicateName(t *testing.T) {
-	_, err := goavro.NewCodec(`{"type":"record","name":"record1","fields":[{"name":"field1","type":"string"},{"name":"field1","type":"int"}]}`)
-	if err == nil {
-		t.Errorf("Actual: %#v; Expected: %#v", err, "non-nil")
-	}
-}
-
-func TestRecordDecodedEmptyBuf(t *testing.T) {
-	codec, err := goavro.NewCodec(`{"type":"record","name":"foo","fields":[{"name":"field1","type":"int"}]}`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	value, buf, err := codec.BinaryDecode(nil)
-	if value != nil {
-		t.Errorf("Actual: %#v; Expected: %#v", value, nil)
-	}
-	if buf != nil {
-		t.Errorf("Actual: %#v; Expected: %#v", buf, nil)
-	}
-	if err == nil {
-		t.Errorf("Actual: %#v; Expected: %#v", err, "non-nil")
-	}
+func TestRecordDecodedEmptyBuffer(t *testing.T) {
+	testBinaryDecodeFailBufferUnderflow(t, `{"type":"record","name":"foo","fields":[{"name":"field1","type":"int"}]}`, nil)
 }
 
 func TestRecordFieldTypeHasPrimitiveName(t *testing.T) {
-	codec, err := goavro.NewCodec(`{"type":"record","name":"record","namespace":"com.example","fields":[{"name":"field1","type":"string"},{"name":"field2","type":{"type":"int"}}]}`)
+	codec, err := goavro.NewCodec(`{
+  "type": "record",
+  "name": "r1",
+  "namespace": "com.example",
+  "fields": [
+    {
+      "name": "f1",
+      "type": "string"
+    },
+    {
+      "name": "f2",
+      "type": {
+        "type": "int"
+      }
+    }
+  ]
+}`)
 	if err != nil {
 		t.Fatal(err)
 	}
 
 	datumIn := map[string]interface{}{
-		// NOTE: order of datum input map keys ought not matter:
-		"field2": 13,
-		"field1": "thirteen",
+		"f1": "thirteen",
+		"f2": 13,
 	}
 
 	buf, err := codec.BinaryEncode(nil, datumIn)
@@ -120,17 +144,178 @@ func TestRecordFieldTypeHasPrimitiveName(t *testing.T) {
 	}
 }
 
-func TestRecordEnclosingNamespaceSimple(t *testing.T) {
-	c, err := goavro.NewCodec(`
-{
+func TestSchemaRecordRecursive(t *testing.T) {
+	testSchemaValid(t, `{
+  "type": "record",
+  "name": "recursive",
+  "fields": [
+    {
+      "name": "label",
+      "type": "string"
+    },
+    {
+      "name": "children",
+      "type": {
+        "type": "array",
+        "items": "recursive"
+      }
+    }
+  ]
+}`)
+}
+
+func TestSchemaNamespaceRecursive(t *testing.T) {
+	testSchemaValid(t, `{
+  "type": "record",
+  "name": "Container",
+  "namespace": "namespace1",
+  "fields": [
+    {
+      "name": "contained",
+      "type": {
+        "type": "record",
+        "name": "MutuallyRecursive",
+        "fields": [
+          {
+            "name": "label",
+            "type": "string"
+          },
+          {
+            "name": "children",
+            "type": {
+              "type": "array",
+              "items": {
+                "type": "record",
+                "name": "MutuallyRecursive",
+                "namespace": "namespace2",
+                "fields": [
+                  {
+                    "name": "value",
+                    "type": "int"
+                  },
+                  {
+                    "name": "children",
+                    "type": {
+                      "type": "array",
+                      "items": "namespace1.MutuallyRecursive"
+                    }
+                  },
+                  {
+                    "name": "morechildren",
+                    "type": {
+                      "type": "array",
+                      "items": "MutuallyRecursive"
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "name": "anotherchild",
+            "type": "namespace2.MutuallyRecursive"
+          }
+        ]
+      }
+    }
+  ]
+}`)
+}
+
+func TestSchemaRecordNamespaceComposite(t *testing.T) {
+	testSchemaValid(t, `{
+  "type": "record",
+  "namespace": "x",
+  "name": "Y",
+  "fields": [
+    {
+      "name": "e",
+      "type": {
+        "type": "record",
+        "name": "Z",
+        "fields": [
+          {
+            "name": "f",
+            "type": "x.Z"
+          }
+        ]
+      }
+    }
+  ]
+}`)
+}
+
+func TestSchemaRecordNamespaceFullName(t *testing.T) {
+	testSchemaValid(t, `{
+  "type": "record",
+  "name": "x.Y",
+  "fields": [
+    {
+      "name": "e",
+      "type": {
+        "type": "record",
+        "name": "Z",
+        "fields": [
+          {
+            "name": "f",
+            "type": "x.Y"
+          },
+          {
+            "name": "g",
+            "type": "x.Z"
+          }
+        ]
+      }
+    }
+  ]
+}`)
+}
+
+func TestSchemaRecordNamespaceEnum(t *testing.T) {
+	testSchemaValid(t, `{"type": "record", "name": "org.apache.avro.tests.Hello", "fields": [
+  {"name": "f1", "type": {"type": "enum", "name": "MyEnum", "symbols": ["Foo", "Bar", "Baz"]}},
+  {"name": "f2", "type": "org.apache.avro.tests.MyEnum"},
+  {"name": "f3", "type": "MyEnum"},
+  {"name": "f4", "type": {"type": "enum", "name": "other.namespace.OtherEnum", "symbols": ["one", "two", "three"]}},
+  {"name": "f5", "type": "other.namespace.OtherEnum"},
+  {"name": "f6", "type": {"type": "enum", "name": "ThirdEnum", "namespace": "some.other", "symbols": ["Alice", "Bob"]}},
+  {"name": "f7", "type": "some.other.ThirdEnum"}
+]}`)
+}
+
+func TestSchemaRecordNamespaceFixed(t *testing.T) {
+	testSchemaValid(t, `{"type": "record", "name": "org.apache.avro.tests.Hello", "fields": [
+  {"name": "f1", "type": {"type": "fixed", "name": "MyFixed", "size": 16}},
+  {"name": "f2", "type": "org.apache.avro.tests.MyFixed"},
+  {"name": "f3", "type": "MyFixed"},
+  {"name": "f4", "type": {"type": "fixed", "name": "other.namespace.OtherFixed", "size": 18}},
+  {"name": "f5", "type": "other.namespace.OtherFixed"},
+  {"name": "f6", "type": {"type": "fixed", "name": "ThirdFixed", "namespace": "some.other", "size": 20}},
+  {"name": "f7", "type": "some.other.ThirdFixed"}
+]}`)
+}
+
+func TestRecordNamespace(t *testing.T) {
+	c, err := goavro.NewCodec(`{
   "type": "record",
   "name": "org.foo.Y",
   "fields": [
-	{"name":"X","type": {"type": "fixed", "size": 4, "name": "fixed_4"}},
-	{"name":"Z","type": {"type": "fixed_4"}}
+    {
+      "name": "X",
+      "type": {
+        "type": "fixed",
+        "size": 4,
+        "name": "fixed_4"
+      }
+    },
+    {
+      "name": "Z",
+      "type": {
+        "type": "fixed_4"
+      }
+    }
   ]
-}
-`)
+}`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -168,31 +353,4 @@ func TestRecordEnclosingNamespaceSimple(t *testing.T) {
 			t.Errorf("Actual: %#v; Expected: %#v", actual, expected)
 		}
 	}
-}
-
-func TestRecordEnclosingNamespaceComplex(t *testing.T) {
-	_, err := goavro.NewCodec(`{
-	  "type": "record",
-	  "name": "outer_record",
-	  "namespace": "com.example",
-	  "fields": [
-	    {
-	      "name": "outer_record_field_1",
-	      "type": {
-	        "type": "record",
-	        "name": "inner_record",
-	        "fields": [
-	          {"type": "string", "name": "inner_record_field_1"},
-	          {"type": "int", "name": "inner_record_field_2"}
-	        ]
-	      }
-		},
-		{"type": {"type": "fixed", "size": 4, "name": "fixed_4"}, "name": "outer_record_field_2"},
-		{"type": {"type": "fixed_4"}, "name": "outer_record_field_3"}
-	  ]
-	}`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	// TODO: ensure inner_record is `com.example.inner_record`
 }

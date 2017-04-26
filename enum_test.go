@@ -1,207 +1,45 @@
 package goavro_test
 
 import (
-	"bytes"
 	"testing"
-
-	"github.com/karrick/goavro"
 )
 
-func TestEnumMissingName(t *testing.T) {
-	_, err := goavro.NewCodec(`{"type":"enum","symbols":["alpha","bravo"]}`)
-	if err == nil {
-		t.Errorf("Actual: %#v; Expected: %#v", err, "non-nil")
-	}
+func TestSchemaEnum(t *testing.T) {
+	testSchemaValid(t, `{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`)
 }
 
-func TestEnumMissingSymbols(t *testing.T) {
-	_, err := goavro.NewCodec(`{"type":"enum","name":"foo"}`)
-	if err == nil {
-		t.Errorf("Actual: %#v; Expected: %#v", err, "non-nil")
-	}
+func TestEnumName(t *testing.T) {
+	testSchemaInvalid(t, `{"type":"enum","symbols":["alpha","bravo"]}`, "Enum ought to have valid name: schema ought to have name key")
+	testSchemaInvalid(t, `{"type":"enum","name":3}`, "Enum ought to have valid name: schema name ought to be non-empty string")
+	testSchemaInvalid(t, `{"type":"enum","name":""}`, "Enum ought to have valid name: schema name ought to be non-empty string")
+	testSchemaInvalid(t, `{"type":"enum","name":"&foo","symbols":["alpha","bravo"]}`, "Enum ought to have valid name: schema name ought to start with")
+	testSchemaInvalid(t, `{"type":"enum","name":"foo&","symbols":["alpha","bravo"]}`, "Enum ought to have valid name: schema name ought to have second and remaining")
 }
 
-func TestEnumSymbolsNotSlice(t *testing.T) {
-	_, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":3}`)
-	if err == nil {
-		t.Errorf("Actual: %#v; Expected: %#v", err, "non-nil")
-	}
+func TestEnumSymbols(t *testing.T) {
+	testSchemaInvalid(t, `{"type":"enum","name":"foo"}`, `Enum "foo" ought to have symbols key`)
+	testSchemaInvalid(t, `{"type":"enum","name":"foo","symbols":3}`, `Enum "foo" symbols ought to be non-empty array of strings`)
+	testSchemaInvalid(t, `{"type":"enum","name":"foo","symbols":[]}`, `Enum "foo" symbols ought to be non-empty array of strings`)
 }
 
-func TestEnumSymbolsNotSliceOfStrings(t *testing.T) {
-	_, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":[3]}`)
-	if err == nil {
-		t.Errorf("Actual: %#v; Expected: %#v", err, "non-nil")
-	}
+func TestEnumSymbolInvalid(t *testing.T) {
+	testSchemaInvalid(t, `{"type":"enum","name":"foo","symbols":[3]}`, `Enum "foo" symbol 1 ought to be non-empty string`)
+	testSchemaInvalid(t, `{"type":"enum","name":"foo","symbols":[""]}`, `Enum "foo" symbol 1 ought to be non-empty string`)
+	testSchemaInvalid(t, `{"type":"enum","name":"foo","symbols":["string-with-invalid-characters"]}`, `Enum "foo" symbol 1 ought to have second and remaining`)
 }
 
-func TestEnumSymbolsEmpty(t *testing.T) {
-	_, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":[]}`)
-	if err == nil {
-		t.Errorf("Actual: %#v; Expected: %#v", err, "non-nil")
-	}
+func TestEnumDecodeError(t *testing.T) {
+	testBinaryDecodeFail(t, `{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`, nil, "buffer underflow")
+	testBinaryDecodeFail(t, `{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`, []byte("\x01"), `Enum "foo": index ought to be between 0 and 1`)
+	testBinaryDecodeFail(t, `{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`, []byte("\x04"), `Enum "foo": index ought to be between 0 and 1`)
 }
 
-func TestEnumSymbolsHasInvalidString(t *testing.T) {
-	_, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":["&invalid"]}`)
-	if err == nil {
-		t.Errorf("Actual: %#v; Expected: %#v", err, "non-nil")
-	}
+func TestEnumEncodeError(t *testing.T) {
+	testBinaryEncodeFail(t, `{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`, 13, `Enum "foo": expected string; received: int`)
+	testBinaryEncodeFail(t, `{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`, "charlie", `Enum "foo": string ought to be member of symbols`)
 }
 
-func TestEnumDecodedEmptyBuf(t *testing.T) {
-	c, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	value, buf, err := c.BinaryDecode(nil)
-	if value != nil {
-		t.Errorf("Actual: %#v; Expected: %#v", value, nil)
-	}
-	if buf != nil {
-		t.Errorf("Actual: %#v; Expected: %#v", buf, nil)
-	}
-	if err == nil {
-		t.Errorf("Actual: %#v; Expected: %#v", err, "non-nil")
-	}
-}
-
-func TestEnumDecodedIndexLessThanZero(t *testing.T) {
-	c, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	originalBuf := []byte{byte(1)}
-	value, buf, err := c.BinaryDecode(originalBuf)
-	if value != nil {
-		t.Errorf("Actual: %#v; Expected: %#v", value, nil)
-	}
-	if !bytes.Equal(buf, originalBuf) {
-		t.Errorf("Actual: %#v; Expected: %#v", buf, nil)
-	}
-	if err == nil {
-		t.Errorf("Actual: %#v; Expected: %#v", err, "non-nil")
-	}
-}
-
-func TestEnumDecodedIndexTooLarge(t *testing.T) {
-	c, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	originalBuf := []byte{byte(4)}
-	value, buf, err := c.BinaryDecode(originalBuf)
-	if value != nil {
-		t.Errorf("Actual: %#v; Expected: %#v", value, nil)
-	}
-	if !bytes.Equal(buf, originalBuf) {
-		t.Errorf("Actual: %#v; Expected: %#v", buf, nil)
-	}
-	if err == nil {
-		t.Errorf("Actual: %#v; Expected: %#v", err, "non-nil")
-	}
-}
-
-func TestEnumDecodedIndexZero(t *testing.T) {
-	c, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	value, buf, err := c.BinaryDecode([]byte{byte(0)})
-	if actual, expected := value.(string), "alpha"; actual != expected {
-		t.Errorf("Actual: %#v; Expected: %#v", actual, expected)
-	}
-	if len(buf) != 0 {
-		t.Errorf("Actual: %#v; Expected: %#v", buf, nil)
-	}
-	if err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestEnumDecodedIndexLargestValid(t *testing.T) {
-	c, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	value, buf, err := c.BinaryDecode([]byte{byte(2)})
-	if actual, expected := value.(string), "bravo"; actual != expected {
-		t.Errorf("Actual: %#v; Expected: %#v", actual, expected)
-	}
-	if len(buf) != 0 {
-		t.Errorf("Actual: %#v; Expected: %#v", buf, nil)
-	}
-	if err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestEnumEncodedDatumNotString(t *testing.T) {
-	c, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	buf, err := c.BinaryEncode(nil, 13)
-	if err == nil {
-		t.Errorf("Actual: %#v; Expected: %#v", err, "non-nil")
-	}
-	if !bytes.Equal(buf, []byte{}) {
-		t.Errorf("Actual: %#v; Expected: %#v", buf, []byte{})
-	}
-}
-
-func TestEnumEncodedDatumNotInEnum(t *testing.T) {
-	c, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	buf, err := c.BinaryEncode(nil, "charlie")
-	if err == nil {
-		t.Errorf("Actual: %#v; Expected: %#v", err, "non-nil")
-	}
-	if !bytes.Equal(buf, []byte{}) {
-		t.Errorf("Actual: %#v; Expected: %#v", buf, []byte{})
-	}
-}
-
-func TestEnumEncodedDatumGood(t *testing.T) {
-	c, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	buf, err := c.BinaryEncode(nil, "bravo")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !bytes.Equal(buf, []byte{byte(2)}) {
-		t.Errorf("Actual: %#v; Expected: %#v", buf, []byte{byte(2)})
-	}
-}
-
-func TestEnumNamedTypeSimple(t *testing.T) {
-	c, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	buf, err := c.BinaryEncode(nil, "bravo")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if actual, expected := buf, []byte{0x2}; !bytes.Equal(buf, expected) {
-		t.Errorf("Actual: %#v; Expected: %#v", actual, expected)
-	}
-}
-
-func TestEnumNamedTypeFullName(t *testing.T) {
-	c, err := goavro.NewCodec(`{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	buf, err := c.BinaryEncode(nil, "bravo")
-	if err != nil {
-		t.Fatal(err)
-	}
-	if actual, expected := buf, []byte{0x2}; !bytes.Equal(buf, expected) {
-		t.Errorf("Actual: %#v; Expected: %#v", actual, expected)
-	}
+func TestEnumEncode(t *testing.T) {
+	testBinaryCodecPass(t, `{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`, "alpha", []byte("\x00"))
+	testBinaryCodecPass(t, `{"type":"enum","name":"foo","symbols":["alpha","bravo"]}`, "bravo", []byte("\x02"))
 }
