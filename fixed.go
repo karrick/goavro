@@ -1,57 +1,49 @@
 package goavro
 
 import (
-	"errors"
 	"fmt"
 )
 
 // Fixed does not have child objects, therefore whatever namespace it defines is just to store its
 // name in the symbol table.
-func (st symtab) makeFixedCodec(enclosingNamespace string, schema interface{}) (*codec, error) {
-	schemaMap, ok := schema.(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("cannot create Fixed codec: expected: map[string]interface{}; received: %T", schema)
+func makeFixedCodec(st map[string]*Codec, enclosingNamespace string, schemaMap map[string]interface{}) (*Codec, error) {
+	c, err := registerNewCodec(st, schemaMap, enclosingNamespace)
+	if err != nil {
+		return nil, fmt.Errorf("Fixed ought to have valid name: %s", err)
 	}
+
 	// Fixed type must have size
 	s1, ok := schemaMap["size"]
 	if !ok {
-		return nil, fmt.Errorf("cannot create Fixed codec: ought to have size key")
+		return nil, fmt.Errorf("Fixed %q ought to have size key", c.typeName)
 	}
 	s2, ok := s1.(float64)
-	if !ok || s2 == 0 {
-		return nil, fmt.Errorf("cannot create Fixed codec: size ought to be non-zero number: %v", s1)
+	if !ok || s2 <= 0 {
+		return nil, fmt.Errorf("Fixed %q size ought to be number greater than zero: %v", c.typeName, s1)
 	}
-	size := int32(s2)
+	size := int(s2)
 
-	c := &codec{
-		binaryDecoder: func(buf []byte) (interface{}, []byte, error) {
-			if int32(len(buf)) < size {
-				return nil, buf, fmt.Errorf("cannot decode Fixed: size exceeds remaining buffer length: %d > %d", size, len(buf))
-			}
-			return buf[:size], buf[size:], nil
-		},
-		binaryEncoder: func(buf []byte, datum interface{}) ([]byte, error) {
-			var value []byte
-			switch v := datum.(type) {
-			case string:
-				value = []byte(v)
-			case []byte:
-				value = v
-			default:
-				return buf, fmt.Errorf("cannot encode Fixed: expected: Go string, []byte; received: %T", v)
-			}
-			if count := int32(len(value)); count > size {
-				return buf, fmt.Errorf("cannot encode Fixed: datum length exceeds size: %d > %d", count, size)
-			}
-			return append(buf, value...), nil
-		},
+	c.binaryDecoder = func(buf []byte) (interface{}, []byte, error) {
+		if len(buf) < size {
+			return nil, buf, fmt.Errorf("Fixed %q buffer underflow: size exceeds remaining buffer length: %d > %d", c.typeName, size, len(buf))
+		}
+		return buf[:size], buf[size:], nil
+	}
+	c.binaryEncoder = func(buf []byte, datum interface{}) ([]byte, error) {
+		var value []byte
+		switch v := datum.(type) {
+		case string:
+			value = []byte(v)
+		case []byte:
+			value = v
+		default:
+			return buf, fmt.Errorf("Fixed %q: expected string or bytes; received: %T", c.typeName, v)
+		}
+		if count := len(value); count != size {
+			return buf, fmt.Errorf("Fixed %q: datum length ought to equal size: %d != %d", c.typeName, count, size)
+		}
+		return append(buf, value...), nil
 	}
 
-	if err := st.registerCodec(c, schemaMap, enclosingNamespace); err != nil {
-		return nil, fmt.Errorf("cannot create Fixed codec: %s", err)
-	}
-	if c.name == nil {
-		return nil, errors.New("cannot create Fixed codec: Fixed requires name")
-	}
 	return c, nil
 }

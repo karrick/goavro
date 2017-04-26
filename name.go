@@ -14,7 +14,7 @@ type ErrInvalidName struct {
 }
 
 func (e ErrInvalidName) Error() string {
-	return "The name portion of a fullname, record field names, and enum symbols must " + e.Message
+	return "schema name ought to " + e.Message
 }
 
 // NOTE: This function designed to work with name components, after they have been split on the
@@ -36,95 +36,103 @@ func isRuneInvalidForOtherCharacters(r rune) bool {
 }
 
 func checkNameComponent(s string) error {
+	err := checkString(s)
+	if err != nil {
+		return &ErrInvalidName{err.Error()}
+	}
+	return err
+}
+
+func checkString(s string) error {
 	if len(s) == 0 {
-		return &ErrInvalidName{"not be empty"}
+		return errors.New("be non-empty string")
 	}
 	if strings.IndexFunc(s[:1], isRuneInvalidForFirstCharacter) != -1 {
-		return &ErrInvalidName{("start with [A-Za-z_]: " + s)}
+		return errors.New("start with [A-Za-z_]: " + s)
 	}
 	if strings.IndexFunc(s[1:], isRuneInvalidForOtherCharacters) != -1 {
-		return &ErrInvalidName{("have second and remaining characters contain only [A-Za-z0-9_]: " + s)}
+		return errors.New("have second and remaining characters contain only [A-Za-z0-9_]: " + s)
 	}
 	return nil
 }
 
-// Name describes an Avro name in terms of its full name and namespace.
-type Name struct {
-	FullName  string // the instance's Avro name
-	Namespace string // for use when building new name from existing one
+// name describes an Avro name in terms of its full name and namespace.
+type name struct {
+	fullName  string // the instance's Avro name
+	namespace string // for use when building new name from existing one
 }
 
-// NewName returns a new Name instance after first ensuring the arguments do not violate any of the
+// newName returns a new Name instance after first ensuring the arguments do not violate any of the
 // Avro naming rules.
-func NewName(name, namespace, enclosingNamespace string) (*Name, error) {
-	var n Name
+func newName(n, ns, ens string) (*name, error) {
+	var nn name
 
-	if index := strings.LastIndexByte(name, '.'); index > -1 {
+	if index := strings.LastIndexByte(n, '.'); index > -1 {
 		// inputName does contain a dot, so ignore everything else and use it as the full name
-		n.FullName = name
-		n.Namespace = name[:index]
+		nn.fullName = n
+		nn.namespace = n[:index]
 	} else {
 		// inputName does not contain a dot, therefore is not the full name
-		if namespace != nullNamespace {
+		if ns != nullNamespace {
 			// if namespace provided in the schema in the same schema level, use it
-			n.FullName = namespace + "." + name
-			n.Namespace = namespace
-		} else if enclosingNamespace != nullNamespace {
+			nn.fullName = ns + "." + n
+			nn.namespace = ns
+		} else if ens != nullNamespace {
 			// otherwise if enclosing namespace provided, use it
-			n.FullName = enclosingNamespace + "." + name
-			n.Namespace = enclosingNamespace
+			nn.fullName = ens + "." + n
+			nn.namespace = ens
 		} else {
 			// otherwise no namespace, so use null namespace, the empty string
-			n.FullName = name
+			nn.fullName = n
 		}
 	}
 
 	// verify all components of the full name for adherence to Avro naming rules
-	for _, component := range strings.Split(n.FullName, ".") {
+	for _, component := range strings.Split(nn.fullName, ".") {
 		if err := checkNameComponent(component); err != nil {
 			return nil, err
 		}
 	}
 
-	return &n, nil
+	return &nn, nil
 }
 
-func newNameFromSchemaMap(enclosingNamespace string, schemaMap map[string]interface{}) (*Name, error) {
+func newNameFromSchemaMap(enclosingNamespace string, schemaMap map[string]interface{}) (*name, error) {
 	var nameString, namespaceString string
 
 	name, ok := schemaMap["name"]
 	if !ok {
-		return nil, errors.New("cannot create name: ought to have name key")
+		return nil, errors.New("schema ought to have name key")
 	}
 	nameString, ok = name.(string)
 	if !ok || nameString == nullNamespace {
-		return nil, fmt.Errorf("cannot create name: name value ought to be non-empty string; received: %T", name)
+		return nil, fmt.Errorf("schema name ought to be non-empty string; received: %T", name)
 	}
 	namespace, ok := schemaMap["namespace"]
 	if ok {
 		namespaceString, ok = namespace.(string)
 		if !ok || namespaceString == nullNamespace {
-			return nil, fmt.Errorf("cannot crate name: namespace value ought to be non-empty string; received: %T", namespace)
+			return nil, fmt.Errorf("schema namespace, if provided, ought to be non-empty string; received: %T", namespace)
 		}
 	}
 
-	return NewName(nameString, namespaceString, enclosingNamespace)
+	return newName(nameString, namespaceString, enclosingNamespace)
 }
 
 // Equal returns true when two Name instances refer to the same Avro name; otherwise it returns
 // false.
-func (n Name) Equal(n2 Name) bool {
-	return n.FullName == n2.FullName
+func (n name) Equal(n2 name) bool {
+	return n.fullName == n2.fullName
 }
 
-func (n Name) String() string {
-	return n.FullName
+func (n name) String() string {
+	return n.fullName
 }
 
 // short returns the name without the prefixed namespace.
-func (n Name) short() string {
-	if index := strings.LastIndexByte(n.FullName, '.'); index > -1 {
-		return n.FullName[index+1:]
+func (n name) short() string {
+	if index := strings.LastIndexByte(n.fullName, '.'); index > -1 {
+		return n.fullName[index+1:]
 	}
-	return n.FullName
+	return n.fullName
 }

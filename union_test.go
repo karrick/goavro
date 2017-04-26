@@ -9,43 +9,43 @@ import (
 )
 
 func TestUnion(t *testing.T) {
-	testCodecBidirectional(t, `["null"]`, goavro.Union("null", nil), []byte("\x00"))
-	testCodecBidirectional(t, `["null","int"]`, goavro.Union("null", nil), []byte("\x00"))
-	testCodecBidirectional(t, `["int","null"]`, goavro.Union("null", nil), []byte("\x02"))
+	testBinaryCodecPass(t, `["null"]`, goavro.Union("null", nil), []byte("\x00"))
+	testBinaryCodecPass(t, `["null","int"]`, goavro.Union("null", nil), []byte("\x00"))
+	testBinaryCodecPass(t, `["int","null"]`, goavro.Union("null", nil), []byte("\x02"))
 
-	testCodecBidirectional(t, `["null","int"]`, goavro.Union("int", 3), []byte("\x02\x06"))
-	testCodecBidirectional(t, `["null","long"]`, goavro.Union("long", 3), []byte("\x02\x06"))
+	testBinaryCodecPass(t, `["null","int"]`, goavro.Union("int", 3), []byte("\x02\x06"))
+	testBinaryCodecPass(t, `["null","long"]`, goavro.Union("long", 3), []byte("\x02\x06"))
 
-	testCodecBidirectional(t, `["int","null"]`, goavro.Union("int", 3), []byte("\x00\x06"))
-	testCodecEncoder(t, `["int","null"]`, goavro.Union("int", 3), []byte("\x00\x06")) // can encode a bare 3
+	testBinaryCodecPass(t, `["int","null"]`, goavro.Union("int", 3), []byte("\x00\x06"))
+	testBinaryEncodePass(t, `["int","null"]`, goavro.Union("int", 3), []byte("\x00\x06")) // can encode a bare 3
 }
 
 func TestUnionRejectInvalidType(t *testing.T) {
-	testBadDatumType(t, `["null","long"]`, 3)
-	testBadDatumType(t, `["null","int","long","float"]`, float64(3.5))
-	testBadDatumType(t, `["null","long"]`, goavro.Union("int", 3))
-	testBadDatumType(t, `["null","int","long","float"]`, goavro.Union("double", float64(3.5)))
+	testBinaryEncodeFailBadDatumType(t, `["null","long"]`, 3)
+	testBinaryEncodeFailBadDatumType(t, `["null","int","long","float"]`, float64(3.5))
+	testBinaryEncodeFailBadDatumType(t, `["null","long"]`, goavro.Union("int", 3))
+	testBinaryEncodeFailBadDatumType(t, `["null","int","long","float"]`, goavro.Union("double", float64(3.5)))
 }
 
 func TestUnionWillCoerceTypeIfPossible(t *testing.T) {
-	testCodecBidirectional(t, `["null","long","float","double"]`, goavro.Union("long", int32(3)), []byte("\x02\x06"))
-	testCodecBidirectional(t, `["null","int","float","double"]`, goavro.Union("int", int64(3)), []byte("\x02\x06"))
-	testCodecBidirectional(t, `["null","int","long","double"]`, goavro.Union("double", float32(3.5)), []byte("\x06\x00\x00\x00\x00\x00\x00\f@"))
-	testCodecBidirectional(t, `["null","int","long","float"]`, goavro.Union("float", float64(3.5)), []byte("\x06\x00\x00\x60\x40"))
+	testBinaryCodecPass(t, `["null","long","float","double"]`, goavro.Union("long", int32(3)), []byte("\x02\x06"))
+	testBinaryCodecPass(t, `["null","int","float","double"]`, goavro.Union("int", int64(3)), []byte("\x02\x06"))
+	testBinaryCodecPass(t, `["null","int","long","double"]`, goavro.Union("double", float32(3.5)), []byte("\x06\x00\x00\x00\x00\x00\x00\f@"))
+	testBinaryCodecPass(t, `["null","int","long","float"]`, goavro.Union("float", float64(3.5)), []byte("\x06\x00\x00\x60\x40"))
 }
 
 func TestUnionWithArray(t *testing.T) {
-	testCodecBidirectional(t, `["null",{"type":"array","items":"int"}]`, goavro.Union("null", nil), []byte("\x00"))
+	testBinaryCodecPass(t, `["null",{"type":"array","items":"int"}]`, goavro.Union("null", nil), []byte("\x00"))
 
-	testCodecBidirectional(t, `["null",{"type":"array","items":"int"}]`, goavro.Union("array", []interface{}{}), []byte("\x02\x00"))
-	testCodecBidirectional(t, `["null",{"type":"array","items":"int"}]`, goavro.Union("array", []interface{}{1}), []byte("\x02\x02\x02\x00"))
-	testCodecBidirectional(t, `["null",{"type":"array","items":"int"}]`, goavro.Union("array", []interface{}{1, 2}), []byte("\x02\x04\x02\x04\x00"))
+	testBinaryCodecPass(t, `["null",{"type":"array","items":"int"}]`, goavro.Union("array", []interface{}{}), []byte("\x02\x00"))
+	testBinaryCodecPass(t, `["null",{"type":"array","items":"int"}]`, goavro.Union("array", []interface{}{1}), []byte("\x02\x02\x02\x00"))
+	testBinaryCodecPass(t, `["null",{"type":"array","items":"int"}]`, goavro.Union("array", []interface{}{1, 2}), []byte("\x02\x04\x02\x04\x00"))
 }
 
 func TestUnionWithMap(t *testing.T) {
-	testCodecBidirectional(t, `["null",{"type":"map","values":"string"}]`, goavro.Union("null", nil), []byte("\x00"))
-	testCodecBidirectional(t, `["string",{"type":"map","values":"string"}]`, goavro.Union("map", map[string]interface{}{"He": "Helium"}), []byte("\x02\x02\x04He\x0cHelium\x00"))
-	testCodecBidirectional(t, `["string",{"type":"array","items":"string"}]`, goavro.Union("string", "Helium"), []byte("\x00\x0cHelium"))
+	testBinaryCodecPass(t, `["null",{"type":"map","values":"string"}]`, goavro.Union("null", nil), []byte("\x00"))
+	testBinaryCodecPass(t, `["string",{"type":"map","values":"string"}]`, goavro.Union("map", map[string]interface{}{"He": "Helium"}), []byte("\x02\x02\x04He\x0cHelium\x00"))
+	testBinaryCodecPass(t, `["string",{"type":"array","items":"string"}]`, goavro.Union("string", "Helium"), []byte("\x00\x0cHelium"))
 }
 
 func TestUnionOfEnumsWithSameType(t *testing.T) {

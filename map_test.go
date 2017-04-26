@@ -1,73 +1,33 @@
 package goavro_test
 
 import (
-	"bytes"
 	"testing"
-
-	"github.com/karrick/goavro"
 )
 
-func TestMapPrimitiveWrappers(t *testing.T) {
-	testCodecBidirectional(t, `{"type":"boolean"}`, false, []byte{0})
-	testCodecBidirectional(t, `{"type":"boolean"}`, true, []byte{1})
-	testCodecBidirectional(t, `{"type":"bytes"}`, []byte(""), []byte{0})
-	testCodecBidirectional(t, `{"type":"bytes"}`, []byte("some bytes"), []byte("\x14some bytes"))
+func TestSchemaMapValueBytes(t *testing.T) {
+	// NOTE: This schema also used to read and write files in OCF format
+	testSchemaValid(t, `{"type":"map","values":"bytes"}`)
 }
 
-func TestMapInt(t *testing.T) {
-	intMap := map[string]interface{}{"Helium": 2}
-	testCodecBidirectional(t, `{"type":"map","values":"int"}`, intMap, []byte("\x02\x0cHelium\x04\x00"))
+func TestMapValues(t *testing.T) {
+	testSchemaInvalid(t, `{"type":"map","value":"int"}`, "Map ought to have values key")
+	testSchemaInvalid(t, `{"type":"map","values":"integer"}`, "Map values ought to be valid Avro type")
+	testSchemaInvalid(t, `{"type":"map","values":3}`, "Map values ought to be valid Avro type")
+	testSchemaInvalid(t, `{"type":"map","values":int}`, "invalid character") // type name must be quoted
 }
 
-func TestMapString(t *testing.T) {
-	stringMap := map[string]interface{}{"He": "Helium"}
-	testCodecBidirectional(t, `{"type":"map","values":"string"}`, stringMap, []byte("\x02\x04He\x0cHelium\x00"))
+func TestMapDecodeFail(t *testing.T) {
+	testBinaryDecodeFail(t, `{"type":"map","values":"boolean"}`, nil, "Map: cannot decode block count")           // leading block count
+	testBinaryDecodeFail(t, `{"type":"map","values":"boolean"}`, []byte("\x01"), "Map: cannot decode block size") // when block count < 0
+	testBinaryDecodeFail(t, `{"type":"map","values":"boolean"}`, []byte("\x02\x04"), "Map: cannot decode key")
+	testBinaryDecodeFail(t, `{"type":"map","values":"boolean"}`, []byte("\x02\x04"), "Map: cannot decode key")
+	testBinaryDecodeFail(t, `{"type":"map","values":"boolean"}`, []byte("\x02\x04a"), "Map: cannot decode key")
+	testBinaryDecodeFail(t, `{"type":"map","values":"boolean"}`, []byte("\x02\x04ab"), "Map: cannot decode value")
+	testBinaryDecodeFail(t, `{"type":"map","values":"boolean"}`, []byte("\x02\x04ab\x02"), "boolean: expected")
+	testBinaryDecodeFail(t, `{"type":"map","values":"boolean"}`, []byte("\x02\x04ab\x01"), "Map: cannot decode block count") // trailing block count
 }
 
-func TestMapValueTypeEnum(t *testing.T) {
-	codec, err := goavro.NewCodec(`{"type":"map","values":{"type":"enum","name":"foo","symbols":["alpha","bravo"]}}`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	buf, err := codec.BinaryEncode(nil, map[string]interface{}{"someKey": "bravo"})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if actual, expected := buf, []byte{
-		0x2, // blockCount = 1 pair
-		0xe, // key length = 7
-		's', 'o', 'm', 'e', 'K', 'e', 'y',
-		0x2, // value = index 1 ("bravo")
-		0,   // blockCount = 0 pairs
-	}; !bytes.Equal(buf, expected) {
-		t.Errorf("Actual: %#v; Expected: %#v", actual, expected)
-	}
-}
-
-func TestMapValueTypeRecord(t *testing.T) {
-	codec, err := goavro.NewCodec(`{"type":"map","values":{"type":"record","name":"foo","fields":[{"name":"field1","type":"string"},{"name":"field2","type":"int"}]}}`)
-	if err != nil {
-		t.Fatal(err)
-	}
-	buf, err := codec.BinaryEncode(nil, map[string]interface{}{
-		"map-key": map[string]interface{}{
-			"field1": "unlucky",
-			"field2": 13,
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if actual, expected := buf, []byte{
-		0x2,                               // blockCount = 1 key-value pair in top level map
-		0xe,                               // first key length = 7
-		'm', 'a', 'p', '-', 'k', 'e', 'y', // first key = "map-key"
-		// this key's value is a record, which is encoded by concatenated its field values
-		0x0e, // field one string length = 7
-		'u', 'n', 'l', 'u', 'c', 'k', 'y',
-		0x1a, // 13
-		0,    // map has no more blocks
-	}; !bytes.Equal(buf, expected) {
-		t.Errorf("Actual: %#v; Expected: %#v", actual, expected)
-	}
+func TestMap(t *testing.T) {
+	testBinaryCodecPass(t, `{"type":"map","values":"null"}`, map[string]interface{}{"ab": nil}, []byte("\x02\x04ab\x00"))
+	testBinaryCodecPass(t, `{"type":"map","values":"boolean"}`, map[string]interface{}{"ab": true}, []byte("\x02\x04ab\x01\x00"))
 }

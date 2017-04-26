@@ -9,42 +9,60 @@ import (
 	"github.com/karrick/goavro"
 )
 
-func testBadDatumType(t *testing.T, schema string, datum interface{}) {
-	var expected []byte
-	codec, err := goavro.NewCodec(schema)
-	if err != nil {
-		t.Fatal(err)
-	}
-	encoded, err := codec.BinaryEncode(nil, datum)
-	if len(encoded) != len(expected) {
-		t.Errorf("Schema: %q; Datum: %v; Actual: %#v; Expected: %#v", schema, datum, encoded, expected)
-	}
-	if !bytes.Equal(encoded, expected) {
-		t.Errorf("Schema: %q; Datum: %v; Actual: %#v; Expected: %#v", schema, datum, encoded, expected)
-	}
-	if actual, expected := err, "received"; actual == nil || !strings.Contains(actual.Error(), expected) {
-		t.Fatalf("Schema: %q; Datum: %v; %v", schema, datum, err)
+func testSchemaInvalid(t *testing.T, schema, errorMessage string) {
+	_, err := goavro.NewCodec(schema)
+	if err == nil || !strings.Contains(err.Error(), errorMessage) {
+		t.Errorf("Actual: %v; Expected: %s", err, errorMessage)
 	}
 }
 
-func testCodecBufferUnderflow(t *testing.T, schema string, buf []byte, isTooShort bool) {
-	codec, err := goavro.NewCodec(schema)
+func testSchemaValid(t *testing.T, schema string) {
+	_, err := goavro.NewCodec(schema)
 	if err != nil {
-		t.Fatal(err)
-	}
-	_, _, err = codec.BinaryDecode(buf)
-	if isTooShort {
-		if actual, expected := err, fmt.Sprintf("cannot decode %s: buffer underflow", schema); actual == nil || actual.Error() != expected {
-			t.Errorf("Schema: %q; Actual: %#v; Expected: %#v", schema, actual, expected)
-		}
-	} else {
-		if err != nil {
-			t.Errorf("Schema: %q; Actual: %#v; Expected: %#v", schema, err, nil)
-		}
+		t.Errorf("Actual: %v; Expected: %v", err, nil)
 	}
 }
 
-func testCodecDecoder(t *testing.T, schema string, datum interface{}, encoded []byte) {
+func testBinaryDecodeFail(t *testing.T, schema string, buf []byte, errorMessage string) {
+	c, err := goavro.NewCodec(schema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	value, newBuffer, err := c.BinaryDecode(buf)
+	if err == nil || !strings.Contains(err.Error(), errorMessage) {
+		t.Errorf("Actual: %v; Expected: %s", err, errorMessage)
+	}
+	if value != nil {
+		t.Errorf("Actual: %v; Expected: %v", value, nil)
+	}
+	if !bytes.Equal(buf, newBuffer) {
+		t.Errorf("Actual: %v; Expected: %v", newBuffer, buf)
+	}
+}
+
+func testBinaryEncodeFail(t *testing.T, schema string, datum interface{}, errorMessage string) {
+	c, err := goavro.NewCodec(schema)
+	if err != nil {
+		t.Fatal(err)
+	}
+	buf, err := c.BinaryEncode(nil, datum)
+	if err == nil || !strings.Contains(err.Error(), errorMessage) {
+		t.Errorf("Actual: %v; Expected: %s", err, errorMessage)
+	}
+	if buf != nil {
+		t.Errorf("Actual: %v; Expected: %v", buf, nil)
+	}
+}
+
+func testBinaryEncodeFailBadDatumType(t *testing.T, schema string, datum interface{}) {
+	testBinaryEncodeFail(t, schema, datum, "received: ")
+}
+
+func testBinaryDecodeFailBufferUnderflow(t *testing.T, schema string, buf []byte) {
+	testBinaryDecodeFail(t, schema, buf, "buffer underflow")
+}
+
+func testBinaryDecodePass(t *testing.T, schema string, datum interface{}, encoded []byte) {
 	codec, err := goavro.NewCodec(schema)
 	if err != nil {
 		t.Fatal(err)
@@ -66,7 +84,7 @@ func testCodecDecoder(t *testing.T, schema string, datum interface{}, encoded []
 	}
 }
 
-func testCodecEncoder(t *testing.T, schema string, datum interface{}, expected []byte) {
+func testBinaryEncodePass(t *testing.T, schema string, datum interface{}, expected []byte) {
 	codec, err := goavro.NewCodec(schema)
 	if err != nil {
 		t.Fatalf("Schma: %q: %s", schema, err)
@@ -81,7 +99,9 @@ func testCodecEncoder(t *testing.T, schema string, datum interface{}, expected [
 	}
 }
 
-func testCodecBidirectional(t *testing.T, schema string, datum interface{}, buf []byte) {
-	testCodecEncoder(t, schema, datum, buf)
-	testCodecDecoder(t, schema, datum, buf)
+// testBinaryCodecPass does a bi-directional codec check, by encoding datum to bytes, then decoding
+// bytes back to datum.
+func testBinaryCodecPass(t *testing.T, schema string, datum interface{}, buf []byte) {
+	testBinaryEncodePass(t, schema, datum, buf)
+	testBinaryDecodePass(t, schema, datum, buf)
 }

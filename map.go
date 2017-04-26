@@ -5,29 +5,25 @@ import (
 	"fmt"
 )
 
-func (st symtab) makeMapCodec(namespace string, schema interface{}) (*codec, error) {
-	schemaMap, ok := schema.(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("cannot create Map codec: expected: map[string]interface{}; received: %T", schema)
-	}
+func makeMapCodec(st map[string]*Codec, namespace string, schemaMap map[string]interface{}) (*Codec, error) {
 	// map type must have values
-	v, ok := schemaMap["values"]
+	valueSchema, ok := schemaMap["values"]
 	if !ok {
-		return nil, errors.New("cannot create Map codec: ought to have values key")
+		return nil, errors.New("Map ought to have values key")
 	}
-	valuesCodec, err := st.buildCodec(namespace, v)
+	valueCodec, err := buildCodec(st, namespace, valueSchema)
 	if err != nil {
-		return nil, fmt.Errorf("cannot create Map codec: cannot create codec for specified values type: %s", err)
+		return nil, fmt.Errorf("Map values ought to be valid Avro type: %s", err)
 	}
 
-	return &codec{
-		name: &Name{"map", nullNamespace},
+	return &Codec{
+		typeName: &name{"map", nullNamespace},
 		binaryDecoder: func(buf []byte) (interface{}, []byte, error) {
 			var err error
 			var value interface{}
 
 			if value, buf, err = longDecoder(buf); err != nil {
-				return nil, buf, fmt.Errorf("cannot decode Map: cannot decode block count: %s", err)
+				return nil, buf, fmt.Errorf("Map: cannot decode block count: %s", err)
 			}
 			blockCount := value.(int64)
 
@@ -46,25 +42,25 @@ func (st symtab) makeMapCodec(namespace string, schema interface{}) (*codec, err
 					// we have no use.
 					blockCount = -blockCount // convert to its positive equivalent
 					if _, buf, err = longDecoder(buf); err != nil {
-						return nil, buf, fmt.Errorf("cannot decode Map: cannot decode block size: %s", err)
+						return nil, buf, fmt.Errorf("Map: cannot decode block size: %s", err)
 					}
 				}
 				// Decode `blockCount` datum values from buffer
 				for i := int64(0); i < blockCount; i++ {
 					// first decode the key string
 					if value, buf, err = stringDecoder(buf); err != nil {
-						return nil, buf, fmt.Errorf("cannot decode Map: cannot decode key string: %s", err)
+						return nil, buf, fmt.Errorf("Map: cannot decode key: %s", err)
 					}
 					key := value.(string) // string decoder always returns a string
 					// then decode the value
-					if value, buf, err = valuesCodec.binaryDecoder(buf); err != nil {
-						return nil, buf, fmt.Errorf("cannot decode Map: cannot decode value for key: %q; %s", key, err)
+					if value, buf, err = valueCodec.binaryDecoder(buf); err != nil {
+						return nil, buf, fmt.Errorf("Map: cannot decode value for key %q; %s", key, err)
 					}
 					mapValues[key] = value
 				}
 				// Decode next blockCount from buffer, because there may be more blocks
 				if value, buf, err = longDecoder(buf); err != nil {
-					return nil, buf, fmt.Errorf("cannot decode Map: cannot decode block count: %s", err)
+					return nil, buf, fmt.Errorf("Map: cannot decode block count: %s", err)
 				}
 				blockCount = value.(int64)
 			}
@@ -73,7 +69,7 @@ func (st symtab) makeMapCodec(namespace string, schema interface{}) (*codec, err
 		binaryEncoder: func(buf []byte, datum interface{}) ([]byte, error) {
 			mapValues, ok := datum.(map[string]interface{})
 			if !ok {
-				return buf, fmt.Errorf("cannot encode Map: received: %T", datum)
+				return buf, fmt.Errorf("Map: expected: map[string]interface{}; received: %T", datum)
 			}
 			if len(mapValues) > 0 {
 				// encode all map key-value pairs into a single block
@@ -82,8 +78,8 @@ func (st symtab) makeMapCodec(namespace string, schema interface{}) (*codec, err
 					// stringEncoder only fails when given non string, so elide error checking
 					buf, _ = stringEncoder(buf, k)
 					// encode the pair value
-					if buf, err = valuesCodec.binaryEncoder(buf, v); err != nil {
-						return buf, fmt.Errorf("cannot encode Map: cannot encode value for key: %q; %v; %s", k, v, err)
+					if buf, err = valueCodec.binaryEncoder(buf, v); err != nil {
+						return buf, fmt.Errorf("Map: cannot encode value for key %q: %v; %s", k, v, err)
 					}
 				}
 			}

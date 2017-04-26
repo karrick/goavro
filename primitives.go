@@ -8,7 +8,7 @@ import (
 
 func booleanDecoder(buf []byte) (interface{}, []byte, error) {
 	if len(buf) < 1 {
-		return nil, nil, fmt.Errorf("cannot decode boolean: buffer underflow")
+		return nil, nil, fmt.Errorf("boolean: buffer underflow")
 	}
 	var b byte
 	b, buf = buf[0], buf[1:]
@@ -18,14 +18,14 @@ func booleanDecoder(buf []byte) (interface{}, []byte, error) {
 	case byte(1):
 		return true, buf, nil
 	default:
-		return nil, buf, fmt.Errorf("cannot decode boolean: received byte: %d", b)
+		return nil, buf, fmt.Errorf("boolean: expected: Go byte(0) or byte(1); received: byte(%d)", b)
 	}
 }
 
 func booleanEncoder(buf []byte, datum interface{}) ([]byte, error) {
 	value, ok := datum.(bool)
 	if !ok {
-		return buf, fmt.Errorf("cannot encode boolean: expected: Go bool; received: %T", datum)
+		return buf, fmt.Errorf("boolean: expected: Go bool; received: %T", datum)
 	}
 	var b byte
 	if value {
@@ -36,19 +36,19 @@ func booleanEncoder(buf []byte, datum interface{}) ([]byte, error) {
 
 func bytesDecoder(buf []byte) (interface{}, []byte, error) {
 	if len(buf) < 1 {
-		return nil, nil, fmt.Errorf("cannot decode bytes: buffer underflow")
+		return nil, nil, fmt.Errorf("bytes: buffer underflow")
 	}
 	var decoded interface{}
 	var err error
 	if decoded, buf, err = longDecoder(buf); err != nil {
-		return nil, buf, fmt.Errorf("cannot decode bytes: %s", err)
+		return nil, buf, fmt.Errorf("bytes: %s", err)
 	}
 	size := decoded.(int64) // longDecoder always returns int64
 	if size < 0 {
-		return nil, buf, fmt.Errorf("cannot decode bytes: negative length: %d", size)
+		return nil, buf, fmt.Errorf("bytes: negative length: %d", size)
 	}
 	if size > int64(len(buf)) {
-		return nil, buf, fmt.Errorf("cannot decode bytes: size exceeds remaining buffer length: %d > %d", size, len(buf))
+		return nil, buf, fmt.Errorf("bytes: buffer underflow: size exceeds remaining buffer length: %d > %d", size, len(buf))
 	}
 	return buf[:size], buf[size:], nil
 }
@@ -62,7 +62,7 @@ func bytesEncoder(buf []byte, datum interface{}) ([]byte, error) {
 	case string:
 		value = []byte(v)
 	default:
-		return buf, fmt.Errorf("cannot encode bytes: expected: Go string, []byte; received: %T", v)
+		return buf, fmt.Errorf("bytes: expected: Go string or []byte; received: %T", v)
 	}
 	// longEncoder only fails when given non int, so elide error checking
 	buf, _ = longEncoder(buf, len(value))
@@ -82,7 +82,7 @@ const doubleEncodedLength = 8 // double requires 8 bytes
 
 func doubleDecoder(buf []byte) (interface{}, []byte, error) {
 	if len(buf) < doubleEncodedLength {
-		return nil, nil, fmt.Errorf("cannot decode double: buffer underflow")
+		return nil, nil, fmt.Errorf("double: buffer underflow")
 	}
 	return math.Float64frombits(binary.LittleEndian.Uint64(buf[:doubleEncodedLength])), buf[doubleEncodedLength:], nil
 }
@@ -98,21 +98,21 @@ func doubleEncoder(buf []byte, datum interface{}) ([]byte, error) {
 		value = float64(v)
 	case int:
 		if int(float64(v)) != v {
-			return buf, fmt.Errorf("cannot encode Go int as Avro double without losing precision: %d", v)
+			return buf, fmt.Errorf("double: provided Go int would lose precision: %d", v)
 		}
 		value = float64(v)
 	case int64:
 		if int64(float64(v)) != v {
-			return buf, fmt.Errorf("cannot encode Go int64 as Avro double without losing precision: %d", v)
+			return buf, fmt.Errorf("double: provided Go int64 would lose precision: %d", v)
 		}
 		value = float64(v)
 	case int32:
 		if int32(float64(v)) != v {
-			return buf, fmt.Errorf("cannot encode Go int32 as Avro double without losing precision: %d", v)
+			return buf, fmt.Errorf("double: provided Go int32 would lose precision: %d", v)
 		}
 		value = float64(v)
 	default:
-		return buf, fmt.Errorf("cannot encode double: expected: Go numeric; received %T", datum)
+		return buf, fmt.Errorf("double: expected: Go numeric; received: %T", datum)
 	}
 	return appendFloat(buf, uint64(math.Float64bits(value)), doubleEncodedLength)
 }
@@ -121,7 +121,7 @@ const floatEncodedLength = 4 // float requires 4 bytes
 
 func floatDecoder(buf []byte) (interface{}, []byte, error) {
 	if len(buf) < floatEncodedLength {
-		return nil, nil, fmt.Errorf("cannot decode float: buffer underflow")
+		return nil, nil, fmt.Errorf("float: buffer underflow")
 	}
 	return math.Float32frombits(binary.LittleEndian.Uint32(buf[:floatEncodedLength])), buf[floatEncodedLength:], nil
 }
@@ -136,26 +136,26 @@ func floatEncoder(buf []byte, datum interface{}) ([]byte, error) {
 	case float64:
 		// Assume runtime can cast special floats correctly
 		if !math.IsNaN(v) && !math.IsInf(v, 1) && !math.IsInf(v, -1) && float64(float32(v)) != v {
-			return buf, fmt.Errorf("cannot encode Go double as Avro float without losing precision: %f", v)
+			return buf, fmt.Errorf("float: provided Go double would lose precision: %f", v)
 		}
 		value = float32(v)
 	case int:
 		if int(float32(v)) != v {
-			return buf, fmt.Errorf("cannot encode Go int as Avro float without losing precision: %d", v)
+			return buf, fmt.Errorf("float: provided Go int would lose precision: %d", v)
 		}
 		value = float32(v)
 	case int64:
 		if int64(float32(v)) != v {
-			return buf, fmt.Errorf("cannot encode Go int64 as Avro float without losing precision: %d", v)
+			return buf, fmt.Errorf("float: provided Go int64 would lose precision: %d", v)
 		}
 		value = float32(v)
 	case int32:
 		if int32(float32(v)) != v {
-			return buf, fmt.Errorf("cannot encode Go int32 as Avro float without losing precision: %d", v)
+			return buf, fmt.Errorf("float: provided Go int32 would lose precision: %d", v)
 		}
 		value = float32(v)
 	default:
-		return buf, fmt.Errorf("cannot encode float: expected: Go numeric; received %T", datum)
+		return buf, fmt.Errorf("float: expected: Go numeric; received: %T", datum)
 	}
 	return appendFloat(buf, uint64(math.Float32bits(value)), floatEncodedLength)
 }
@@ -193,7 +193,7 @@ func intDecoder(buf []byte) (interface{}, []byte, error) {
 		}
 		shift += 7
 	}
-	return nil, nil, fmt.Errorf("cannot decode int: buffer underflow")
+	return nil, nil, fmt.Errorf("int: buffer underflow")
 }
 
 // receives any Go numeric type and casts to int32, possibly with data loss if the value the client
@@ -203,28 +203,28 @@ func intEncoder(buf []byte, datum interface{}) ([]byte, error) {
 	switch v := datum.(type) {
 	case int:
 		if int(int32(v)) != v {
-			return buf, fmt.Errorf("cannot encode Go int as Avro int without losing precision: %d", v)
+			return buf, fmt.Errorf("int: provided Go int would lose precision: %d", v)
 		}
 		value = int32(v)
 	case int64:
 		if int64(int32(v)) != v {
-			return buf, fmt.Errorf("cannot encode Go int64 as Avro int without losing precision: %d", v)
+			return buf, fmt.Errorf("int: provided Go int64 would lose precision: %d", v)
 		}
 		value = int32(v)
 	case int32:
 		value = v
 	case float64:
 		if float64(int32(v)) != v {
-			return buf, fmt.Errorf("cannot encode Go float64 as Avro int without losing precision: %f", v)
+			return buf, fmt.Errorf("int: provided Go float64 would lose precision: %f", v)
 		}
 		value = int32(v)
 	case float32:
 		if float32(int32(v)) != v {
-			return buf, fmt.Errorf("cannot encode Go float32 as Avro int without losing precision: %f", v)
+			return buf, fmt.Errorf("int: provided Go float32 would lose precision: %f", v)
 		}
 		value = int32(v)
 	default:
-		return buf, fmt.Errorf("cannot encode long: expected: Go numeric; received: %T", datum)
+		return buf, fmt.Errorf("long: expected: Go numeric; received: %T", datum)
 	}
 	encoded := uint64((uint32(value) << 1) ^ uint32(value>>intDownShift))
 	return appendInt(buf, encoded)
@@ -242,7 +242,7 @@ func longDecoder(buf []byte) (interface{}, []byte, error) {
 		}
 		shift += 7
 	}
-	return nil, nil, fmt.Errorf("cannot decode long: buffer underflow")
+	return nil, nil, fmt.Errorf("long: buffer underflow")
 }
 
 // receives any Go numeric type and casts to int64, possibly with data loss if the value the client
@@ -258,16 +258,16 @@ func longEncoder(buf []byte, datum interface{}) ([]byte, error) {
 		value = int64(v)
 	case float64:
 		if float64(int64(v)) != v {
-			return buf, fmt.Errorf("cannot encode Go float64 as Avro long without losing precision: %f", v)
+			return buf, fmt.Errorf("long: provided Go float64 would lose precision: %f", v)
 		}
 		value = int64(v)
 	case float32:
 		if float32(int64(v)) != v {
-			return buf, fmt.Errorf("cannot encode Go float64 as Avro long without losing precision: %f", v)
+			return buf, fmt.Errorf("long: provided Go float64 would lose precision: %f", v)
 		}
 		value = int64(v)
 	default:
-		return buf, fmt.Errorf("cannot encode long: expected: Go numeric; received: %T", datum)
+		return buf, fmt.Errorf("long: expected: Go numeric; received: %T", datum)
 	}
 	encoded := (uint64(value) << 1) ^ uint64(value>>longDownShift)
 	return appendInt(buf, encoded)
@@ -277,14 +277,14 @@ func nullDecoder(buf []byte) (interface{}, []byte, error) { return nil, buf, nil
 
 func nullEncoder(buf []byte, datum interface{}) ([]byte, error) {
 	if datum != nil {
-		return buf, fmt.Errorf("cannot encode null: expected Go nil; received: %T", datum)
+		return buf, fmt.Errorf("null: expected: Go nil; received: %T", datum)
 	}
 	return buf, nil
 }
 
 func stringDecoder(buf []byte) (interface{}, []byte, error) {
 	if len(buf) < 1 {
-		return nil, nil, fmt.Errorf("cannot decode string: buffer underflow")
+		return nil, nil, fmt.Errorf("string: buffer underflow")
 	}
 	var decoded interface{}
 	var err error
@@ -293,10 +293,10 @@ func stringDecoder(buf []byte) (interface{}, []byte, error) {
 	}
 	size := decoded.(int64) // longDecoder always returns int64
 	if size < 0 {
-		return nil, buf, fmt.Errorf("cannot decode string: negative length: %d", size)
+		return nil, buf, fmt.Errorf("string: negative length: %d", size)
 	}
 	if size > int64(len(buf)) {
-		return nil, buf, fmt.Errorf("cannot decode string: size exceeds remaining buffer length: %d > %d", size, len(buf))
+		return nil, buf, fmt.Errorf("string: buffer underflow: size exceeds remaining buffer length: %d > %d", size, len(buf))
 	}
 	return string(buf[:size]), buf[size:], nil
 }
@@ -310,7 +310,7 @@ func stringEncoder(buf []byte, datum interface{}) ([]byte, error) {
 	case []byte:
 		value = v
 	default:
-		return buf, fmt.Errorf("cannot encode string: expected Go string, []byte; received: %T", v)
+		return buf, fmt.Errorf("string: expected: Go string or []byte; received: %T", v)
 	}
 	// longEncoder only fails when given non int, so elide error checking
 	buf, _ = longEncoder(buf, len(value))
