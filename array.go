@@ -6,9 +6,6 @@ import (
 )
 
 func makeArrayCodec(st map[string]*Codec, enclosingNamespace string, schemaMap map[string]interface{}) (*Codec, error) {
-	if debugTypeNames {
-		fmt.Printf("makeArrayCodec(%v)\n", schemaMap)
-	}
 	// array type must have items
 	itemSchema, ok := schemaMap["items"]
 	if !ok {

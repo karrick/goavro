@@ -5,8 +5,6 @@ import (
 	"fmt"
 )
 
-const debugTypeNames = false
-
 // BinaryDecoder interface describes types that expose the Decode method.
 type BinaryDecoder interface {
 	BinaryDecode([]byte) (interface{}, []byte, error)
@@ -60,10 +58,6 @@ func NewCodec(schemaSpecification string) (*Codec, error) {
 		return c, nil
 	}
 
-	if debugTypeNames {
-		fmt.Printf("NewCodec(%s)\n", schemaSpecification)
-	}
-
 	// NOTE: At this point, schema ought to be valid JSON
 	var schema interface{}
 	if err := json.Unmarshal([]byte(schemaSpecification), &schema); err != nil {
@@ -73,8 +67,6 @@ func NewCodec(schemaSpecification string) (*Codec, error) {
 	c, err := buildCodec(st, nullNamespace, schema)
 	if err == nil {
 		c.symbolTable = st
-	} else if debugTypeNames {
-		err = fmt.Errorf("%s; %s", err, typeNames(st))
 	}
 	return c, err
 }
@@ -105,9 +97,6 @@ func (c Codec) BinaryEncode(buf []byte, datum interface{}) ([]byte, error) {
 
 // convert a schema data structure to a codec, prefixing with specified namespace
 func buildCodec(st map[string]*Codec, enclosingNamespace string, schema interface{}) (*Codec, error) {
-	if debugTypeNames {
-		fmt.Printf("buildCodec: %T; %v\n", schema, schema)
-	}
 	switch schemaType := schema.(type) {
 	case map[string]interface{}:
 		return buildCodecForTypeDescribedByMap(st, enclosingNamespace, schemaType)
@@ -122,9 +111,6 @@ func buildCodec(st map[string]*Codec, enclosingNamespace string, schema interfac
 
 // Reach into the map, grabbing its "type".  Use that to create the codec.
 func buildCodecForTypeDescribedByMap(st map[string]*Codec, enclosingNamespace string, schemaMap map[string]interface{}) (*Codec, error) {
-	if debugTypeNames {
-		fmt.Printf("buildCodecForTypeDescribedByMap(%q, %v)\n", enclosingNamespace, schemaMap)
-	}
 	t, ok := schemaMap["type"]
 	if !ok {
 		return nil, fmt.Errorf("cannot build codec: missing type: %v", schemaMap)
@@ -149,9 +135,6 @@ func buildCodecForTypeDescribedByMap(st map[string]*Codec, enclosingNamespace st
 }
 
 func buildCodecForTypeDescribedByString(st map[string]*Codec, enclosingNamespace string, typeName string, schemaMap map[string]interface{}) (*Codec, error) {
-	if debugTypeNames {
-		fmt.Printf("buildCodecForTypeDescribedByString(%q, %q, %v)\n", enclosingNamespace, typeName, schemaMap)
-	}
 	// NOTE: When codec already exists, return it.  This includes both primitive type codecs added
 	// in NewCodec, and user-defined types, added while building the codec.
 	if cd, ok := st[typeName]; ok {
