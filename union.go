@@ -53,7 +53,7 @@ func buildCodecForTypeDescribedBySlice(st map[string]*Codec, enclosingNamespace 
 			c := codecFromIndex[index]
 			decoded, buf, err = c.binaryDecoder(buf)
 			if err != nil {
-				return nil, buf, fmt.Errorf("cannot decode Union item %d: %s", index, err)
+				return nil, buf, fmt.Errorf("cannot decode Union item %d: %s", index+1, err)
 			}
 			if decoded == nil {
 				return nil, buf, nil

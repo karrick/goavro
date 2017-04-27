@@ -72,20 +72,22 @@ func makeRecordCodec(st map[string]*Codec, enclosingNamespace string, schemaMap 
 		if !ok {
 			return buf, fmt.Errorf("Record %q value ought to be map[string]interface{}; received: %T", c.typeName, datum)
 		}
-		if actual, expected := len(valueMap), len(fieldCodecs); actual != expected {
-			return buf, fmt.Errorf("Record %q value field count ought to equal number of schema fields: %d != %d", c.typeName, actual, expected)
-		}
+
 		// records encoded in order fields were defined in schema
 		for i, fieldCodec := range fieldCodecs {
 			fieldName := fieldNames[i]
+
+			// NOTE: If field value was not specified in map, then attempt to encode the nil
 			fieldValue, ok := valueMap[fieldName]
-			if !ok {
-				return buf, fmt.Errorf("Record %q value ought to have keys for all schema field names; missing: %q", c.typeName, fieldName)
-			}
+
 			var err error
 			buf, err = fieldCodec.binaryEncoder(buf, fieldValue)
 			if err != nil {
-				return buf, fmt.Errorf("Record %q field value does not match its schema: %s", c.typeName, err)
+				if !ok {
+					return buf, fmt.Errorf("Record %q field value for %q was not specified", c.typeName, fieldName)
+				}
+				// field was specified in datum; therefore its value was invalid
+				return buf, fmt.Errorf("Record %q field value for %q does not match its schema: %s", c.typeName, fieldName, err)
 			}
 		}
 		return buf, nil

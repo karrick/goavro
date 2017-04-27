@@ -354,3 +354,17 @@ func TestRecordNamespace(t *testing.T) {
 		}
 	}
 }
+
+func TestRecordEncodeFail(t *testing.T) {
+	schema := `{
+  "type": "record",
+  "name": "r1",
+  "fields": [
+    {"name": "f1", "type": "string"},
+    {"name": "f2", "type": "string"}
+  ]
+}`
+
+	testBinaryEncodeFail(t, schema, map[string]interface{}{"f1": "foo"}, `field value for "f2" was not specified`)
+	testBinaryEncodeFail(t, schema, map[string]interface{}{"f1": "foo", "f2": 13}, `field value for "f2" does not match its schema`)
+}

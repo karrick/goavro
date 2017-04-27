@@ -125,3 +125,19 @@ func TestUnionMapRecordFitsInRecord(t *testing.T) {
 		}
 	}
 }
+
+func TestUnionRecordFieldWhenNull(t *testing.T) {
+	schema := `{
+  "type": "record",
+  "name": "r1",
+  "fields": [
+    {"name": "f1", "type": "string"},
+    {"name": "f2", "type": [{"type": "array", "items": "string"}, "null"]}
+  ]
+}`
+
+	testBinaryCodecPass(t, schema, map[string]interface{}{"f1": "foo", "f2": goavro.Union("array", []string{"bar"})}, []byte("\x06foo\x00\x02\x06bar\x00"))
+
+	// decoded blob will include "f2" so decode test will be more involved
+	testBinaryEncodePass(t, schema, map[string]interface{}{"f1": "foo"}, []byte("\x06foo\x02"))
+}
