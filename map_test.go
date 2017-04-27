@@ -17,14 +17,14 @@ func TestMapValues(t *testing.T) {
 }
 
 func TestMapDecodeFail(t *testing.T) {
-	testBinaryDecodeFail(t, `{"type":"map","values":"boolean"}`, nil, "Map: cannot decode block count")           // leading block count
-	testBinaryDecodeFail(t, `{"type":"map","values":"boolean"}`, []byte("\x01"), "Map: cannot decode block size") // when block count < 0
-	testBinaryDecodeFail(t, `{"type":"map","values":"boolean"}`, []byte("\x02\x04"), "Map: cannot decode key")
-	testBinaryDecodeFail(t, `{"type":"map","values":"boolean"}`, []byte("\x02\x04"), "Map: cannot decode key")
-	testBinaryDecodeFail(t, `{"type":"map","values":"boolean"}`, []byte("\x02\x04a"), "Map: cannot decode key")
-	testBinaryDecodeFail(t, `{"type":"map","values":"boolean"}`, []byte("\x02\x04ab"), "Map: cannot decode value")
+	testBinaryDecodeFail(t, `{"type":"map","values":"boolean"}`, nil, "cannot decode Map block count")           // leading block count
+	testBinaryDecodeFail(t, `{"type":"map","values":"boolean"}`, []byte("\x01"), "cannot decode Map block size") // when block count < 0
+	testBinaryDecodeFail(t, `{"type":"map","values":"boolean"}`, []byte("\x02\x04"), "cannot decode Map key")
+	testBinaryDecodeFail(t, `{"type":"map","values":"boolean"}`, []byte("\x02\x04"), "cannot decode Map key")
+	testBinaryDecodeFail(t, `{"type":"map","values":"boolean"}`, []byte("\x02\x04a"), "cannot decode Map key")
+	testBinaryDecodeFail(t, `{"type":"map","values":"boolean"}`, []byte("\x02\x04ab"), "cannot decode Map value")
 	testBinaryDecodeFail(t, `{"type":"map","values":"boolean"}`, []byte("\x02\x04ab\x02"), "boolean: expected")
-	testBinaryDecodeFail(t, `{"type":"map","values":"boolean"}`, []byte("\x02\x04ab\x01"), "Map: cannot decode block count") // trailing block count
+	testBinaryDecodeFail(t, `{"type":"map","values":"boolean"}`, []byte("\x02\x04ab\x01"), "cannot decode Map block count") // trailing block count
 }
 
 func TestMap(t *testing.T) {

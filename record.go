@@ -27,13 +27,13 @@ func makeRecordCodec(st map[string]*Codec, enclosingNamespace string, schemaMap 
 	for i, fieldSchema := range fieldSchemas {
 		fieldSchemaMap, ok := fieldSchema.(map[string]interface{})
 		if !ok {
-			return nil, fmt.Errorf("Record %q field %d ought to be valid Avro named type; received: %T", c.typeName, i+1, fieldSchema)
+			return nil, fmt.Errorf("Record %q field %d ought to be valid Avro named type; received: %v", c.typeName, i+1, fieldSchema)
 		}
 
 		// NOTE: field names are not registered in the symbol table, because field names are not
 		// individually addressable codecs.
 
-		// fmt.Printf("%q: field: %d; fieldSchemaMap: %v\n", recordName, i+1, fieldSchemaMap)
+		// fmt.Printf("%q field: %d; fieldSchemaMap: %v\n", recordName, i+1, fieldSchemaMap)
 		// fieldCodec, err := buildCodecForTypeDescribedByMap(st, nullNamespace, fieldSchemaMap)
 		fieldCodec, err := buildCodecForTypeDescribedByMap(st, c.typeName.namespace, fieldSchemaMap)
 		if err != nil {

@@ -79,7 +79,7 @@ func NewCodec(schemaSpecification string) (*Codec, error) {
 func (c Codec) BinaryDecode(buf []byte) (interface{}, []byte, error) {
 	value, newBuf, err := c.binaryDecoder(buf)
 	if err != nil {
-		return nil, buf, err
+		return nil, buf, err // if error, return original byte slice
 	}
 	return value, newBuf, nil
 }
@@ -90,7 +90,7 @@ func (c Codec) BinaryDecode(buf []byte) (interface{}, []byte, error) {
 func (c Codec) BinaryEncode(buf []byte, datum interface{}) ([]byte, error) {
 	newBuf, err := c.binaryEncoder(buf, datum)
 	if err != nil {
-		return buf, err
+		return buf, err // if error, return original byte slice
 	}
 	return newBuf, nil
 }
@@ -105,7 +105,7 @@ func buildCodec(st map[string]*Codec, enclosingNamespace string, schema interfac
 	case []interface{}:
 		return buildCodecForTypeDescribedBySlice(st, enclosingNamespace, schemaType)
 	default:
-		return nil, fmt.Errorf("cannot build codec: unknown schema type: %T", schema)
+		return nil, fmt.Errorf("unknown schema type: %T", schema)
 	}
 }
 
@@ -113,7 +113,7 @@ func buildCodec(st map[string]*Codec, enclosingNamespace string, schema interfac
 func buildCodecForTypeDescribedByMap(st map[string]*Codec, enclosingNamespace string, schemaMap map[string]interface{}) (*Codec, error) {
 	t, ok := schemaMap["type"]
 	if !ok {
-		return nil, fmt.Errorf("cannot build codec: missing type: %v", schemaMap)
+		return nil, fmt.Errorf("missing type: %v", schemaMap)
 	}
 	switch v := t.(type) {
 	case string:
@@ -130,7 +130,7 @@ func buildCodecForTypeDescribedByMap(st map[string]*Codec, enclosingNamespace st
 	case []interface{}:
 		return buildCodecForTypeDescribedBySlice(st, enclosingNamespace, v)
 	default:
-		return nil, fmt.Errorf("cannot build codec: type ought to be either string, map[string]interface{}, or []interface{}; received: %T", t)
+		return nil, fmt.Errorf("type ought to be either string, map[string]interface{}, or []interface{}; received: %T", t)
 	}
 }
 
@@ -159,7 +159,7 @@ func buildCodecForTypeDescribedByString(st map[string]*Codec, enclosingNamespace
 	case "record":
 		return makeRecordCodec(st, enclosingNamespace, schemaMap)
 	default:
-		return nil, fmt.Errorf("cannot build codec for unknown type name: %q", typeName)
+		return nil, fmt.Errorf("unknown type name: %q", typeName)
 	}
 }
 

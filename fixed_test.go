@@ -19,10 +19,10 @@ func TestFixedName(t *testing.T) {
 }
 
 func TestFixedSize(t *testing.T) {
-	testSchemaInvalid(t, `{"type":"fixed","name":"foo"}`, `Fixed "foo" ought to have size key`)
-	testSchemaInvalid(t, `{"type":"fixed","name":"foo","size":"16"}`, `Fixed "foo" size ought to be number greater than zero`)
-	testSchemaInvalid(t, `{"type":"fixed","name":"foo","size":-1}`, `Fixed "foo" size ought to be number greater than zero`)
-	testSchemaInvalid(t, `{"type":"fixed","name":"foo","size":0}`, `Fixed "foo" size ought to be number greater than zero`)
+	testSchemaInvalid(t, `{"type":"fixed","name":"f1"}`, `Fixed "f1" ought to have size key`)
+	testSchemaInvalid(t, `{"type":"fixed","name":"f1","size":"16"}`, `Fixed "f1" size ought to be number greater than zero`)
+	testSchemaInvalid(t, `{"type":"fixed","name":"f1","size":-1}`, `Fixed "f1" size ought to be number greater than zero`)
+	testSchemaInvalid(t, `{"type":"fixed","name":"f1","size":0}`, `Fixed "f1" size ought to be number greater than zero`)
 }
 
 func TestFixedDecodeBufferUnderflow(t *testing.T) {

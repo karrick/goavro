@@ -37,10 +37,10 @@ func makeFixedCodec(st map[string]*Codec, enclosingNamespace string, schemaMap m
 		case []byte:
 			value = v
 		default:
-			return buf, fmt.Errorf("Fixed %q: expected string or bytes; received: %T", c.typeName, v)
+			return buf, fmt.Errorf("cannot encode Fixed %q: expected string or bytes; received: %T", c.typeName, v)
 		}
 		if count := len(value); count != size {
-			return buf, fmt.Errorf("Fixed %q: datum length ought to equal size: %d != %d", c.typeName, count, size)
+			return buf, fmt.Errorf("cannot encode Fixed %q: datum length ought to equal size: %d != %d", c.typeName, count, size)
 		}
 		return append(buf, value...), nil
 	}

@@ -70,32 +70,32 @@ func testBinaryDecodePass(t *testing.T, schema string, datum interface{}, encode
 
 	value, remaining, err := codec.BinaryDecode(encoded)
 	if err != nil {
-		t.Fatalf("Schema: %q; %s", schema, err)
+		t.Fatalf("schema: %s; %s", schema, err)
 	}
 
 	// remaining ought to be empty because there is nothing remaining to be decoded
 	if actual, expected := len(remaining), 0; actual != expected {
-		t.Errorf("Schema: %q; Datum: %v; Actual: %#v; Expected: %#v", schema, datum, actual, expected)
+		t.Errorf("schema: %s; Datum: %v; Actual: %#v; Expected: %#v", schema, datum, actual, expected)
 	}
 
 	// for testing purposes, to prevent big switch statement, convert each to string and compare.
 	if actual, expected := fmt.Sprintf("%v", value), fmt.Sprintf("%v", datum); actual != expected {
-		t.Errorf("Schema: %q; Datum: %v; Actual: %#v; Expected: %#v", schema, datum, actual, expected)
+		t.Errorf("schema: %s; Datum: %v; Actual: %#v; Expected: %#v", schema, datum, actual, expected)
 	}
 }
 
 func testBinaryEncodePass(t *testing.T, schema string, datum interface{}, expected []byte) {
 	codec, err := goavro.NewCodec(schema)
 	if err != nil {
-		t.Fatalf("Schma: %q: %s", schema, err)
+		t.Fatalf("Schma: %q %s", schema, err)
 	}
 
 	actual, err := codec.BinaryEncode(nil, datum)
 	if err != nil {
-		t.Fatalf("Schema: %q; Datum: %v; %s", schema, datum, err)
+		t.Fatalf("schema: %s; Datum: %v; %s", schema, datum, err)
 	}
 	if !bytes.Equal(actual, expected) {
-		t.Errorf("Schema: %q; Datum: %v; Actual: %#v; Expected: %#v", schema, datum, actual, expected)
+		t.Errorf("schema: %s; Datum: %v; Actual: %#v; Expected: %#v", schema, datum, actual, expected)
 	}
 }
 

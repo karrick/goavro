@@ -39,25 +39,25 @@ func makeEnumCodec(st map[string]*Codec, enclosingNamespace string, schemaMap ma
 		var index int64
 
 		if value, buf, err = longDecoder(buf); err != nil {
-			return nil, buf, fmt.Errorf("Enum %q: cannot decode index: %s", c.typeName, err)
+			return nil, buf, fmt.Errorf("cannot decode Enum %q: index: %s", c.typeName, err)
 		}
 		index = value.(int64) // longDecoder always returns int64
 		if index < 0 || index >= int64(len(symbols)) {
-			return nil, buf, fmt.Errorf("Enum %q: index ought to be between 0 and %d; read index: %d", c.typeName, len(symbols)-1, index)
+			return nil, buf, fmt.Errorf("cannot decode Enum %q: index ought to be between 0 and %d; read index: %d", c.typeName, len(symbols)-1, index)
 		}
 		return symbols[index], buf, nil
 	}
 	c.binaryEncoder = func(buf []byte, datum interface{}) ([]byte, error) {
 		someString, ok := datum.(string)
 		if !ok {
-			return buf, fmt.Errorf("Enum %q: expected string; received: %T", c.typeName, datum)
+			return buf, fmt.Errorf("cannot encode Enum %q: expected string; received: %T", c.typeName, datum)
 		}
 		for i, symbol := range symbols {
 			if symbol == someString {
 				return longEncoder(buf, i)
 			}
 		}
-		return buf, fmt.Errorf("Enum %q: string ought to be member of symbols: %v; %q", c.typeName, symbols, someString)
+		return buf, fmt.Errorf("cannot encode Enum %q: value ought to be member of symbols: %v; %q", c.typeName, symbols, someString)
 	}
 
 	return c, nil

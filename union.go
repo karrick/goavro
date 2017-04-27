@@ -15,7 +15,7 @@ func Union(name string, datum interface{}) interface{} {
 
 func buildCodecForTypeDescribedBySlice(st map[string]*Codec, enclosingNamespace string, schemaArray []interface{}) (*Codec, error) {
 	if len(schemaArray) == 0 {
-		return nil, errors.New("cannot create Union codec without any members")
+		return nil, errors.New("Union ought to have one or more members")
 	}
 
 	allowedTypes := make([]string, len(schemaArray)) // used for error reporting when encoder receives invalid datum type
@@ -25,12 +25,11 @@ func buildCodecForTypeDescribedBySlice(st map[string]*Codec, enclosingNamespace 
 	for i, unionMemberSchema := range schemaArray {
 		unionMemberCodec, err := buildCodec(st, enclosingNamespace, unionMemberSchema)
 		if err != nil {
-			// TODO: error message needs more surrounding context of where we are in schema
-			return nil, fmt.Errorf("cannot create Union codec for item: %d; %s", i, err)
+			return nil, fmt.Errorf("Union item %d ought to be valid Avro type: %s", i+1, err)
 		}
 		fullName := unionMemberCodec.typeName.fullName
 		if _, ok := indexFromName[fullName]; ok {
-			return nil, fmt.Errorf("cannot create Union: duplicate type: %s", unionMemberCodec.typeName)
+			return nil, fmt.Errorf("Union item %d ought to be unique type: %s", i+1, unionMemberCodec.typeName)
 		}
 		indexFromName[fullName] = i
 		allowedTypes[i] = fullName
@@ -49,12 +48,12 @@ func buildCodecForTypeDescribedBySlice(st map[string]*Codec, enclosingNamespace 
 			}
 			index := decoded.(int64) // longDecoder always returns int64, so elide error checking
 			if index < 0 || index >= int64(len(codecFromIndex)) {
-				return nil, buf, fmt.Errorf("cannot decode Union: index must be between 0 and %d: read index: %d", len(codecFromIndex)-1, index)
+				return nil, buf, fmt.Errorf("cannot decode Union: index ought to be between 0 and %d; read index: %d", len(codecFromIndex)-1, index)
 			}
 			c := codecFromIndex[index]
 			decoded, buf, err = c.binaryDecoder(buf)
 			if err != nil {
-				return nil, buf, fmt.Errorf("cannot decode Union: item %d; %s", index, err)
+				return nil, buf, fmt.Errorf("cannot decode Union item %d: %s", index, err)
 			}
 			if decoded == nil {
 				return nil, buf, nil
@@ -66,25 +65,25 @@ func buildCodecForTypeDescribedBySlice(st map[string]*Codec, enclosingNamespace 
 			case nil:
 				index, ok := indexFromName["null"]
 				if !ok {
-					return buf, fmt.Errorf("cannot encode Union value: no Union types in schema support datum: allowed types: %v; received: %T", allowedTypes, datum)
+					return buf, fmt.Errorf("cannot encode Union: no member schema types support datum: allowed types: %v; received: %T", allowedTypes, datum)
 				}
 				return longEncoder(buf, index)
 			case map[string]interface{}:
 				if len(v) != 1 {
-					return buf, fmt.Errorf("cannot encode Union value: non-nil Union values ought to be specified with Go map[string]interface{}, with single key equal to type name, and value equal to datum value: %v; received: %T", allowedTypes, datum)
+					return buf, fmt.Errorf("cannot encode Union: non-nil values ought to be specified with Go map[string]interface{}, with single key equal to type name, and value equal to datum value: %v; received: %T", allowedTypes, datum)
 				}
 				// will execute exactly once
 				for key, value := range v {
 					index, ok := indexFromName[key]
 					if !ok {
-						return buf, fmt.Errorf("cannot encode Union value: no Union types in schema support datum: allowed types: %v; received: %T", allowedTypes, datum)
+						return buf, fmt.Errorf("cannot encode Union: no member schema types support datum: allowed types: %v; received: %T", allowedTypes, datum)
 					}
 					c := codecFromIndex[index]
 					buf, _ = longEncoder(buf, index)
 					return c.binaryEncoder(buf, value)
 				}
 			}
-			return buf, fmt.Errorf("cannot encode Union value: non-nil Union values ought to be specified with Go map[string]interface{}, with single key equal to type name, and value equal to datum value: %v; received: %T", allowedTypes, datum)
+			return buf, fmt.Errorf("cannot encode Union: non-nil values ought to be specified with Go map[string]interface{}, with single key equal to type name, and value equal to datum value: %v; received: %T", allowedTypes, datum)
 		},
 	}, nil
 }
