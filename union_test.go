@@ -54,6 +54,10 @@ func TestUnionWithArray(t *testing.T) {
 	testBinaryCodecPass(t, `["null",{"type":"array","items":"int"}]`, goavro.Union("array", []interface{}{}), []byte("\x02\x00"))
 	testBinaryCodecPass(t, `["null",{"type":"array","items":"int"}]`, goavro.Union("array", []interface{}{1}), []byte("\x02\x02\x02\x00"))
 	testBinaryCodecPass(t, `["null",{"type":"array","items":"int"}]`, goavro.Union("array", []interface{}{1, 2}), []byte("\x02\x04\x02\x04\x00"))
+
+	testBinaryCodecPass(t, `[{"type": "array", "items": "string"}, "null"]`, goavro.Union("null", nil), []byte{2})
+	testBinaryCodecPass(t, `[{"type": "array", "items": "string"}, "null"]`, goavro.Union("array", []string{"foo"}), []byte("\x00\x02\x06foo\x00"))
+	testBinaryCodecPass(t, `[{"type": "array", "items": "string"}, "null"]`, goavro.Union("array", []string{"foo", "bar"}), []byte("\x00\x04\x06foo\x06bar\x00"))
 }
 
 func TestUnionWithMap(t *testing.T) {
