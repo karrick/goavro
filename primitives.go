@@ -3,12 +3,13 @@ package goavro
 import (
 	"encoding/binary"
 	"fmt"
+	"io"
 	"math"
 )
 
 func booleanDecoder(buf []byte) (interface{}, []byte, error) {
 	if len(buf) < 1 {
-		return nil, nil, fmt.Errorf("boolean: buffer underflow")
+		return nil, nil, io.ErrShortBuffer // fmt.Errorf("boolean: buffer underflow")
 	}
 	var b byte
 	b, buf = buf[0], buf[1:]
@@ -36,7 +37,7 @@ func booleanEncoder(buf []byte, datum interface{}) ([]byte, error) {
 
 func bytesDecoder(buf []byte) (interface{}, []byte, error) {
 	if len(buf) < 1 {
-		return nil, nil, fmt.Errorf("bytes: buffer underflow")
+		return nil, nil, io.ErrShortBuffer // fmt.Errorf("bytes: buffer underflow")
 	}
 	var decoded interface{}
 	var err error
@@ -48,7 +49,7 @@ func bytesDecoder(buf []byte) (interface{}, []byte, error) {
 		return nil, buf, fmt.Errorf("bytes: negative length: %d", size)
 	}
 	if size > int64(len(buf)) {
-		return nil, buf, fmt.Errorf("bytes: buffer underflow: size exceeds remaining buffer length: %d > %d", size, len(buf))
+		return nil, buf, io.ErrShortBuffer // fmt.Errorf("bytes: buffer underflow: size exceeds remaining buffer length: %d > %d", size, len(buf))
 	}
 	return buf[:size], buf[size:], nil
 }
@@ -82,7 +83,7 @@ const doubleEncodedLength = 8 // double requires 8 bytes
 
 func doubleDecoder(buf []byte) (interface{}, []byte, error) {
 	if len(buf) < doubleEncodedLength {
-		return nil, nil, fmt.Errorf("double: buffer underflow")
+		return nil, nil, io.ErrShortBuffer // fmt.Errorf("double: buffer underflow")
 	}
 	return math.Float64frombits(binary.LittleEndian.Uint64(buf[:doubleEncodedLength])), buf[doubleEncodedLength:], nil
 }
@@ -121,7 +122,7 @@ const floatEncodedLength = 4 // float requires 4 bytes
 
 func floatDecoder(buf []byte) (interface{}, []byte, error) {
 	if len(buf) < floatEncodedLength {
-		return nil, nil, fmt.Errorf("float: buffer underflow")
+		return nil, nil, io.ErrShortBuffer // fmt.Errorf("float: buffer underflow")
 	}
 	return math.Float32frombits(binary.LittleEndian.Uint32(buf[:floatEncodedLength])), buf[floatEncodedLength:], nil
 }
@@ -193,7 +194,7 @@ func intDecoder(buf []byte) (interface{}, []byte, error) {
 		}
 		shift += 7
 	}
-	return nil, nil, fmt.Errorf("int: buffer underflow")
+	return nil, nil, io.ErrShortBuffer // fmt.Errorf("int: buffer underflow")
 }
 
 // receives any Go numeric type and casts to int32, possibly with data loss if the value the client
@@ -242,7 +243,7 @@ func longDecoder(buf []byte) (interface{}, []byte, error) {
 		}
 		shift += 7
 	}
-	return nil, nil, fmt.Errorf("long: buffer underflow")
+	return nil, nil, io.ErrShortBuffer // fmt.Errorf("long: buffer underflow")
 }
 
 // receives any Go numeric type and casts to int64, possibly with data loss if the value the client
@@ -284,7 +285,7 @@ func nullEncoder(buf []byte, datum interface{}) ([]byte, error) {
 
 func stringDecoder(buf []byte) (interface{}, []byte, error) {
 	if len(buf) < 1 {
-		return nil, nil, fmt.Errorf("string: buffer underflow")
+		return nil, nil, io.ErrShortBuffer // fmt.Errorf("string: buffer underflow")
 	}
 	var decoded interface{}
 	var err error
@@ -296,7 +297,7 @@ func stringDecoder(buf []byte) (interface{}, []byte, error) {
 		return nil, buf, fmt.Errorf("string: negative length: %d", size)
 	}
 	if size > int64(len(buf)) {
-		return nil, buf, fmt.Errorf("string: buffer underflow: size exceeds remaining buffer length: %d > %d", size, len(buf))
+		return nil, buf, io.ErrShortBuffer // fmt.Errorf("string: buffer underflow: size exceeds remaining buffer length: %d > %d", size, len(buf))
 	}
 	return string(buf[:size]), buf[size:], nil
 }
