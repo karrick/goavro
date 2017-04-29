@@ -1,0 +1,100 @@
+package main
+
+import (
+	"flag"
+	"fmt"
+	"io"
+	"io/ioutil"
+	"os"
+	"path/filepath"
+
+	"github.com/karrick/goavro"
+)
+
+const (
+	magicBytes     = "Obj\x01"
+	metadataSchema = `{"type":"map","values":"bytes"}`
+	syncLength     = 16
+)
+
+func usage() {
+	executable, err := os.Executable()
+	if err != nil {
+		executable = os.Args[0]
+	}
+	base := filepath.Base(executable)
+	fmt.Fprintf(os.Stderr, "Usage of %s:\n", base)
+	fmt.Fprintf(os.Stderr, "\t%s [-deflate] schema.avsc input.dat output.avro\n", base)
+	flag.PrintDefaults()
+	os.Exit(2)
+}
+
+func main() {
+	deflateCodec := flag.Bool("deflate", false, "use 'deflate' compression codec")
+	flag.Parse()
+
+	if len(flag.Args()) != 3 {
+		usage()
+	}
+
+	if len(os.Args) < 3 {
+		f, err := os.Executable()
+		if err != nil {
+			f = os.Args[0]
+		}
+		bail(fmt.Errorf("Usage: %s $inputSchemaFile $inputDataFile $outputAvroFile", f))
+	}
+
+	var compression goavro.Compression // zero-value is "null"
+	if *deflateCodec {
+		compression = goavro.CompressionDeflate
+	}
+
+	schemaBytes, err := ioutil.ReadFile(flag.Arg(0))
+	if err != nil {
+		bail(err)
+	}
+
+	dataBytes, err := ioutil.ReadFile(flag.Arg(1))
+	if err != nil {
+		bail(err)
+	}
+
+	bd, err := goavro.NewCodec(string(schemaBytes))
+	if err != nil {
+		bail(err)
+	}
+
+	datum, _, err := bd.BinaryDecode(dataBytes)
+	if err != nil {
+		bail(err)
+	}
+
+	fh, err := os.Create(flag.Arg(2))
+	if err != nil {
+		bail(err)
+	}
+	defer func(ioc io.Closer) {
+		if err := ioc.Close(); err != nil {
+			bail(err)
+		}
+	}(fh)
+
+	ocfw, err := goavro.NewOCFWriter(goavro.OCFWriterConfig{
+		W:           fh,
+		Schema:      string(schemaBytes),
+		Compression: compression,
+	})
+	if err != nil {
+		bail(err)
+	}
+
+	if err = ocfw.Append([]interface{}{datum}); err != nil {
+		bail(err)
+	}
+}
+
+func bail(err error) {
+	fmt.Fprintf(os.Stderr, "%s\n", err)
+	os.Exit(1)
+}
