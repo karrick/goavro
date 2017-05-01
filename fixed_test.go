@@ -26,7 +26,7 @@ func TestFixedSize(t *testing.T) {
 }
 
 func TestFixedDecodeBufferUnderflow(t *testing.T) {
-	testBinaryDecodeFail(t, `{"type":"fixed","name":"md5","size":16}`, nil, "buffer underflow")
+	testBinaryDecodeFail(t, `{"type":"fixed","name":"md5","size":16}`, nil, "short buffer")
 }
 
 func TestFixedDecodeWithExtra(t *testing.T) {

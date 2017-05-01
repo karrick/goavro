@@ -59,7 +59,7 @@ func testBinaryEncodeFailBadDatumType(t *testing.T, schema string, datum interfa
 }
 
 func testBinaryDecodeFailBufferUnderflow(t *testing.T, schema string, buf []byte) {
-	testBinaryDecodeFail(t, schema, buf, "buffer underflow")
+	testBinaryDecodeFail(t, schema, buf, "short buffer")
 }
 
 func testBinaryDecodePass(t *testing.T, schema string, datum interface{}, encoded []byte) {

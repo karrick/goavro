@@ -29,7 +29,7 @@ func TestEnumSymbolInvalid(t *testing.T) {
 }
 
 func TestEnumDecodeError(t *testing.T) {
-	testBinaryDecodeFail(t, `{"type":"enum","name":"e1","symbols":["alpha","bravo"]}`, nil, "buffer underflow")
+	testBinaryDecodeFail(t, `{"type":"enum","name":"e1","symbols":["alpha","bravo"]}`, nil, "short buffer")
 	testBinaryDecodeFail(t, `{"type":"enum","name":"e1","symbols":["alpha","bravo"]}`, []byte("\x01"), `cannot decode Enum "e1": index ought to be between 0 and 1`)
 	testBinaryDecodeFail(t, `{"type":"enum","name":"e1","symbols":["alpha","bravo"]}`, []byte("\x04"), `cannot decode Enum "e1": index ought to be between 0 and 1`)
 }
