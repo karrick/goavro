@@ -24,30 +24,29 @@ func usage() {
 	}
 	base := filepath.Base(executable)
 	fmt.Fprintf(os.Stderr, "Usage of %s:\n", base)
-	fmt.Fprintf(os.Stderr, "\t%s [-deflate] schema.avsc input.dat output.avro\n", base)
+	fmt.Fprintf(os.Stderr, "\t%s [-compress null|deflate|snappy] schema.avsc input.dat output.avro\n", base)
 	flag.PrintDefaults()
 	os.Exit(2)
 }
 
 func main() {
-	deflateCodec := flag.Bool("deflate", false, "use 'deflate' compression codec")
+	compress := flag.String("compress", "null", "compression codec ('null', 'deflate', 'snappy'; default: 'null')")
 	flag.Parse()
+
+	var compression goavro.Compression
+	switch *compress {
+	case goavro.CompressionNullLabel:
+		// the goavro.Compression zero value specifies the null codec
+	case goavro.CompressionDeflateLabel:
+		compression = goavro.CompressionDeflate
+	case goavro.CompressionSnappyLabel:
+		compression = goavro.CompressionSnappy
+	default:
+		bail(fmt.Errorf("unsupported compression codec: %s", *compress))
+	}
 
 	if len(flag.Args()) != 3 {
 		usage()
-	}
-
-	if len(os.Args) < 3 {
-		f, err := os.Executable()
-		if err != nil {
-			f = os.Args[0]
-		}
-		bail(fmt.Errorf("Usage: %s $inputSchemaFile $inputDataFile $outputAvroFile", f))
-	}
-
-	var compression goavro.Compression // zero-value is "null"
-	if *deflateCodec {
-		compression = goavro.CompressionDeflate
 	}
 
 	schemaBytes, err := ioutil.ReadFile(flag.Arg(0))

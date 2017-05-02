@@ -14,6 +14,18 @@ func main() {
 	compress := flag.String("compress", "null", "compression codec ('null', 'deflate', 'snappy'; default: 'null')")
 	flag.Parse()
 
+	var compression goavro.Compression
+	switch *compress {
+	case goavro.CompressionNullLabel:
+		// the goavro.Compression zero value specifies the null codec
+	case goavro.CompressionDeflateLabel:
+		compression = goavro.CompressionDeflate
+	case goavro.CompressionSnappyLabel:
+		compression = goavro.CompressionSnappy
+	default:
+		bail(fmt.Errorf("unsupported compression codec: %s", *compress))
+	}
+
 	schemaBytes, err := ioutil.ReadFile("../../fixtures/weather.avsc")
 	if err != nil {
 		bail(err)
@@ -28,18 +40,6 @@ func main() {
 			bail(err)
 		}
 	}(fh)
-
-	var compression goavro.Compression
-	switch *compress {
-	case goavro.CompressionNullLabel:
-		// the goavro.Compression zero value specifies the null codec
-	case goavro.CompressionDeflateLabel:
-		compression = goavro.CompressionDeflate
-	case goavro.CompressionSnappyLabel:
-		compression = goavro.CompressionSnappy
-	default:
-		bail(fmt.Errorf("unsupported compression codec: %s", *compress))
-	}
 
 	ocfw, err := goavro.NewOCFWriter(goavro.OCFWriterConfig{
 		W:           fh,

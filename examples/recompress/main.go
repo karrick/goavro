@@ -27,10 +27,6 @@ func main() {
 	count := flag.Int("count", 0, "max number of items in each block (zero implies no limit)")
 	flag.Parse()
 
-	if len(flag.Args()) == 0 {
-		usage()
-	}
-
 	var compression goavro.Compression
 	switch *compress {
 	case goavro.CompressionNullLabel:
@@ -41,6 +37,10 @@ func main() {
 		compression = goavro.CompressionSnappy
 	default:
 		bail(fmt.Errorf("unsupported compression codec: %s", *compress))
+	}
+
+	if len(flag.Args()) == 0 {
+		usage()
 	}
 
 	fromF, err := os.Open(flag.Arg(0))
