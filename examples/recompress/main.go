@@ -17,13 +17,13 @@ func usage() {
 	}
 	base := filepath.Base(executable)
 	fmt.Fprintf(os.Stderr, "Usage of %s:\n", base)
-	fmt.Fprintf(os.Stderr, "\t%s [-count N] [-deflate] from-file to-file\n", base)
+	fmt.Fprintf(os.Stderr, "\t%s [-compress null|deflate|snappy] [-count N] from-file to-file\n", base)
 	flag.PrintDefaults()
 	os.Exit(2)
 }
 
 func main() {
-	deflateCodec := flag.Bool("deflate", false, "use 'deflate' compression codec")
+	compress := flag.String("compress", "null", "compression codec ('null', 'deflate', 'snappy'; default: 'null')")
 	count := flag.Int("count", 0, "max number of items in each block (zero implies no limit)")
 	flag.Parse()
 
@@ -31,9 +31,16 @@ func main() {
 		usage()
 	}
 
-	var compression goavro.Compression // zero-value is "null"
-	if *deflateCodec {
+	var compression goavro.Compression
+	switch *compress {
+	case goavro.CompressionNullLabel:
+		// the goavro.Compression zero value specifies the null codec
+	case goavro.CompressionDeflateLabel:
 		compression = goavro.CompressionDeflate
+	case goavro.CompressionSnappyLabel:
+		compression = goavro.CompressionSnappy
+	default:
+		bail(fmt.Errorf("unsupported compression codec: %s", *compress))
 	}
 
 	fromF, err := os.Open(flag.Arg(0))
