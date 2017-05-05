@@ -5,26 +5,45 @@ import (
 	"fmt"
 )
 
-// BinaryDecoder interface describes types that expose the Decode method.
+// BinaryDecoder interface describes types that expose the BinaryDecode method.
 type BinaryDecoder interface {
 	BinaryDecode([]byte) (interface{}, []byte, error)
 }
 
-// BinaryEncoder interface describes types that expose the Encode method.
+// BinaryEncoder interface describes types that expose the BinaryEncode method.
 type BinaryEncoder interface {
 	BinaryEncode([]byte, interface{}) ([]byte, error)
 }
 
-// BinaryCoder interface describes types that expose both the Decode and the Encode methods.
+// BinaryCoder interface describes types that expose both the BinaryDecode and
+// the BinaryEncode methods.
 type BinaryCoder interface {
 	BinaryDecoder
 	BinaryEncoder
 }
 
-// Codec stores function pointers for encoding and decoding Avro blobs according to their defined
-// specification.  Their state is created during initialization, but then never modified, so the
-// same Codec may be safely used in multiple go routines to encode and or decode different Avro
-// streams concurrently.
+// TextDecoder interface describes types that expose the TextDecode method.
+type TextDecoder interface {
+	TextDecode([]byte) (interface{}, []byte, error)
+}
+
+// TextEncoder interface describes types that expose the TextEncode method.
+type TextEncoder interface {
+	TextEncode([]byte, interface{}) ([]byte, error)
+}
+
+// TextCoder interface describes types that expose both the TextDecode and the
+// TextEncode methods.
+type TextCoder interface {
+	TextDecoder
+	TextEncoder
+}
+
+// Codec stores function pointers for encoding and decoding Avro blobs according
+// to their defined specification.  Their state is created during
+// initialization, but then never modified, so the same Codec may be safely used
+// in multiple go routines to encode and or decode different Avro streams
+// concurrently.
 type Codec struct {
 	typeName    *name
 	symbolTable map[string]*Codec
@@ -32,27 +51,73 @@ type Codec struct {
 	binaryDecoder func([]byte) (interface{}, []byte, error)
 	binaryEncoder func([]byte, interface{}) ([]byte, error)
 
-	// textDecoder func([]byte) (interface{}, []byte, error)
-	// textEncoder func([]byte, interface{}) ([]byte, error)
+	textDecoder func([]byte) (interface{}, []byte, error)
+	textEncoder func([]byte, interface{}) ([]byte, error)
 }
 
-// NewCodec returns a Codec that can encode and decode the specified Avro schema.
+func newSymbolTable() map[string]*Codec {
+	return map[string]*Codec{
+		"boolean": &Codec{
+			typeName:      &name{"boolean", nullNamespace},
+			binaryDecoder: booleanDecoder,
+			binaryEncoder: booleanEncoder,
+			textDecoder:   booleanTextDecoder,
+			textEncoder:   booleanTextEncoder,
+		},
+		"bytes": &Codec{typeName: &name{"bytes", nullNamespace},
+			binaryDecoder: bytesDecoder,
+			binaryEncoder: bytesEncoder,
+			textDecoder:   bytesTextDecoder,
+			textEncoder:   bytesTextEncoder,
+		},
+		"double": &Codec{typeName: &name{"double", nullNamespace},
+			binaryDecoder: doubleDecoder,
+			binaryEncoder: doubleEncoder,
+			textDecoder:   doubleTextDecoder,
+			textEncoder:   doubleTextEncoder,
+		},
+		"float": &Codec{typeName: &name{"float", nullNamespace},
+			binaryDecoder: floatDecoder,
+			binaryEncoder: floatEncoder,
+			textDecoder:   floatTextDecoder,
+			textEncoder:   floatTextEncoder,
+		},
+		"int": &Codec{typeName: &name{"int", nullNamespace},
+			binaryDecoder: intDecoder,
+			binaryEncoder: intEncoder,
+			textDecoder:   intTextDecoder,
+			textEncoder:   intTextEncoder,
+		},
+		"long": &Codec{typeName: &name{"long", nullNamespace},
+			binaryDecoder: longDecoder,
+			binaryEncoder: longEncoder,
+			textDecoder:   longTextDecoder,
+			textEncoder:   longTextEncoder,
+		},
+		"null": &Codec{typeName: &name{"null", nullNamespace},
+			binaryDecoder: nullDecoder,
+			binaryEncoder: nullEncoder,
+			textDecoder:   nullTextDecoder,
+			textEncoder:   nullTextEncoder,
+		},
+		"string": &Codec{typeName: &name{"string", nullNamespace},
+			binaryDecoder: stringDecoder,
+			binaryEncoder: stringEncoder,
+			textDecoder:   stringTextDecoder,
+			textEncoder:   stringTextEncoder,
+		},
+	}
+}
+
+// NewCodec returns a Codec that can encode and decode the specified Avro
+// schema.
 func NewCodec(schemaSpecification string) (*Codec, error) {
 	// bootstrap a symbol table with primitive type codecs for the new codec
-	st := map[string]*Codec{
-		"boolean": &Codec{typeName: &name{"boolean", nullNamespace}, binaryDecoder: booleanDecoder, binaryEncoder: booleanEncoder},
-		"bytes":   &Codec{typeName: &name{"bytes", nullNamespace}, binaryDecoder: bytesDecoder, binaryEncoder: bytesEncoder},
-		"double":  &Codec{typeName: &name{"double", nullNamespace}, binaryDecoder: doubleDecoder, binaryEncoder: doubleEncoder},
-		"float":   &Codec{typeName: &name{"float", nullNamespace}, binaryDecoder: floatDecoder, binaryEncoder: floatEncoder},
-		"int":     &Codec{typeName: &name{"int", nullNamespace}, binaryDecoder: intDecoder, binaryEncoder: intEncoder},
-		"long":    &Codec{typeName: &name{"long", nullNamespace}, binaryDecoder: longDecoder, binaryEncoder: longEncoder},
-		"null":    &Codec{typeName: &name{"null", nullNamespace}, binaryDecoder: nullDecoder, binaryEncoder: nullEncoder},
-		"string":  &Codec{typeName: &name{"string", nullNamespace}, binaryDecoder: stringDecoder, binaryEncoder: stringEncoder},
-	}
+	st := newSymbolTable()
 
-	// NOTE: Some clients might give us unadorned primitive type name for the schema, e.g., "long".
-	// While it is not valid JSON, it is a valid schema.  Provide special handling for primitive
-	// type names.
+	// NOTE: Some clients might give us unadorned primitive type name for the
+	// schema, e.g., "long".  While it is not valid JSON, it is a valid schema.
+	// Provide special handling for primitive type names.
 	if c, ok := st[schemaSpecification]; ok {
 		c.symbolTable = st
 		return c, nil
@@ -71,11 +136,12 @@ func NewCodec(schemaSpecification string) (*Codec, error) {
 	return c, err
 }
 
-// BinaryDecode decodes the provided byte slice in accordance with the Codec's Avro schema.  On success,
-// it returns the decoded value, along with a new byte slice with the decoded bytes consumed.  In
-// other words, when decoding an Avro int that happens to take 3 bytes, the returned byte slice will
-// be like the original byte slice, but with the first three bytes removed.  On error, it returns
-// the original byte slice without any bytes consumed and the error.
+// BinaryDecode decodes the provided byte slice in accordance with the Codec's
+// Avro schema.  On success, it returns the decoded value, along with a new byte
+// slice with the decoded bytes consumed.  In other words, when decoding an Avro
+// int that happens to take 3 bytes, the returned byte slice will be like the
+// original byte slice, but with the first three bytes removed.  On error, it
+// returns the original byte slice without any bytes consumed and the error.
 func (c Codec) BinaryDecode(buf []byte) (interface{}, []byte, error) {
 	value, newBuf, err := c.binaryDecoder(buf)
 	if err != nil {
@@ -84,9 +150,10 @@ func (c Codec) BinaryDecode(buf []byte) (interface{}, []byte, error) {
 	return value, newBuf, nil
 }
 
-// BinaryEncode encodes the provided datum value in accordance with the Codec's Avro schema.  It takes a
-// byte slice to which to append the encoded bytes.  On success, it returns the new byte slice with
-// the appended byte slice.  On error, it returns the original byte slice without any encoded bytes.
+// BinaryEncode encodes the provided datum value in accordance with the Codec's
+// Avro schema.  It takes a byte slice to which to append the encoded bytes.  On
+// success, it returns the new byte slice with the appended byte slice.  On
+// error, it returns the original byte slice without any encoded bytes.
 func (c Codec) BinaryEncode(buf []byte, datum interface{}) ([]byte, error) {
 	newBuf, err := c.binaryEncoder(buf, datum)
 	if err != nil {
@@ -95,7 +162,34 @@ func (c Codec) BinaryEncode(buf []byte, datum interface{}) ([]byte, error) {
 	return newBuf, nil
 }
 
-// convert a schema data structure to a codec, prefixing with specified namespace
+// TextDecode decodes the provided byte slice in accordance with the Codec's
+// Avro schema.  On success, it returns the decoded value, along with a new byte
+// slice with the decoded bytes consumed.  In other words, when decoding an Avro
+// int that happens to take 3 bytes, the returned byte slice will be like the
+// original byte slice, but with the first three bytes removed.  On error, it
+// returns the original byte slice without any bytes consumed and the error.
+func (c Codec) TextDecode(buf []byte) (interface{}, []byte, error) {
+	value, newBuf, err := c.textDecoder(buf)
+	if err != nil {
+		return nil, buf, err // if error, return original byte slice
+	}
+	return value, newBuf, nil
+}
+
+// TextEncode encodes the provided datum value in accordance with the Codec's
+// Avro schema.  It takes a byte slice to which to append the encoded bytes.  On
+// success, it returns the new byte slice with the appended byte slice.  On
+// error, it returns the original byte slice without any encoded bytes.
+func (c Codec) TextEncode(buf []byte, datum interface{}) ([]byte, error) {
+	newBuf, err := c.textEncoder(buf, datum)
+	if err != nil {
+		return buf, err // if error, return original byte slice
+	}
+	return newBuf, nil
+}
+
+// convert a schema data structure to a codec, prefixing with specified
+// namespace
 func buildCodec(st map[string]*Codec, enclosingNamespace string, schema interface{}) (*Codec, error) {
 	switch schemaType := schema.(type) {
 	case map[string]interface{}:
@@ -135,8 +229,9 @@ func buildCodecForTypeDescribedByMap(st map[string]*Codec, enclosingNamespace st
 }
 
 func buildCodecForTypeDescribedByString(st map[string]*Codec, enclosingNamespace string, typeName string, schemaMap map[string]interface{}) (*Codec, error) {
-	// NOTE: When codec already exists, return it.  This includes both primitive type codecs added
-	// in NewCodec, and user-defined types, added while building the codec.
+	// NOTE: When codec already exists, return it.  This includes both primitive
+	// type codecs added in NewCodec, and user-defined types, added while
+	// building the codec.
 	if cd, ok := st[typeName]; ok {
 		return cd, nil
 	}
@@ -163,7 +258,8 @@ func buildCodecForTypeDescribedByString(st map[string]*Codec, enclosingNamespace
 	}
 }
 
-// notion of enclosing namespace changes when record, enum, or fixed create a new namespace, for child objects.
+// notion of enclosing namespace changes when record, enum, or fixed create a
+// new namespace, for child objects.
 func registerNewCodec(st map[string]*Codec, schemaMap map[string]interface{}, enclosingNamespace string) (*Codec, error) {
 	n, err := newNameFromSchemaMap(enclosingNamespace, schemaMap)
 	if err != nil {

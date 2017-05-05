@@ -80,7 +80,7 @@ func TestSchemaRecordFieldWithDefaults(t *testing.T) {
 }
 
 func TestRecordDecodedEmptyBuffer(t *testing.T) {
-	testBinaryDecodeFailBufferUnderflow(t, `{"type":"record","name":"foo","fields":[{"name":"field1","type":"int"}]}`, nil)
+	testBinaryDecodeFailShortBuffer(t, `{"type":"record","name":"foo","fields":[{"name":"field1","type":"int"}]}`, nil)
 }
 
 func TestRecordFieldTypeHasPrimitiveName(t *testing.T) {
@@ -115,7 +115,7 @@ func TestRecordFieldTypeHasPrimitiveName(t *testing.T) {
 		t.Fatal(err)
 	}
 	if expected := []byte{
-		0x10, // field1 length = 8
+		0x10, // field1 size = 8
 		't', 'h', 'i', 'r', 't', 'e', 'e', 'n',
 		0x1a, // field2 == 13
 	}; !bytes.Equal(buf, expected) {
@@ -321,8 +321,8 @@ func TestRecordNamespace(t *testing.T) {
 	}
 
 	datumIn := map[string]interface{}{
-		"X": "abcd",
-		"Z": "efgh",
+		"X": []byte("abcd"),
+		"Z": []byte("efgh"),
 	}
 
 	buf, err := c.BinaryEncode(nil, datumIn)
@@ -367,4 +367,24 @@ func TestRecordEncodeFail(t *testing.T) {
 
 	testBinaryEncodeFail(t, schema, map[string]interface{}{"f1": "foo"}, `field value for "f2" was not specified`)
 	testBinaryEncodeFail(t, schema, map[string]interface{}{"f1": "foo", "f2": 13}, `field value for "f2" does not match its schema`)
+}
+
+func TestRecordTextDecodeFail(t *testing.T) {
+	schema := `{"name":"r1","type":"record","fields":[{"name":"string","type":"string"},{"name":"bytes","type":"bytes"}]}`
+	testTextDecodeFail(t, schema, []byte(`    "string"  :  "silly"  ,   "bytes"  : "silly" } `), "expected: '{'")
+	testTextDecodeFail(t, schema, []byte(`  {  16  :  "silly"  ,   "bytes"  : "silly" } `), "expected initial \"")
+	testTextDecodeFail(t, schema, []byte(`  {  "badName"  :  "silly"  ,   "bytes"  : "silly" } `), "cannot determine codec")
+	testTextDecodeFail(t, schema, []byte(`  {  "string"  ,  "silly"  ,   "bytes"  : "silly" } `), "expected: ':'")
+	testTextDecodeFail(t, schema, []byte(`  {  "string"  :  13  ,   "bytes"  : "silly" } `), "expected initial \"")
+	testTextDecodeFail(t, schema, []byte(`  {  "string"  :  "silly" :   "bytes"  : "silly" } `), "expected ',' or '}'")
+	testTextDecodeFail(t, schema, []byte(`  {  "string"  :  "silly" ,   "bytes"  : "silly"  `), "short buffer")
+	testTextDecodeFail(t, schema, []byte(`  {  "string"  :  "silly"  `), "short buffer")
+	testTextDecodeFail(t, schema, []byte(`  {  "string"  :  "silly" } `), "only found 1 of 2 fields")
+}
+
+func TestRecordTextCodecPass(t *testing.T) {
+	silly := "⌘ "
+	testTextEncodePass(t, `{"name":"r1","type":"record","fields":[{"name":"string","type":"string"}]}`, map[string]interface{}{"string": silly}, []byte(`{"string":"\u0001\u2318 "}`))
+	testTextEncodePass(t, `{"name":"r1","type":"record","fields":[{"name":"bytes","type":"bytes"}]}`, map[string]interface{}{"bytes": []byte(silly)}, []byte(`{"bytes":"\u0001\u00E2\u008C\u0098 "}`))
+	testTextDecodePass(t, `{"name":"r1","type":"record","fields":[{"name":"string","type":"string"},{"name":"bytes","type":"bytes"}]}`, map[string]interface{}{"string": silly, "bytes": []byte(silly)}, []byte(` { "string" : "\u0001\u2318 " , "bytes" : "\u0001\u00E2\u008C\u0098 " }`))
 }

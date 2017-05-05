@@ -21,9 +21,10 @@ func makeRecordCodec(st map[string]*Codec, enclosingNamespace string, schemaMap 
 		return nil, fmt.Errorf("Record %q fields ought to be non-empty array: %v", c.typeName, fields)
 	}
 
-	fieldCodecs := make([]*Codec, len(fieldSchemas))
-	fieldNames := make([]string, len(fieldSchemas))
-	fieldNameDuplicateCheck := make(map[string]struct{})
+	codecFromFieldName := make(map[string]*Codec)
+	codecFromIndex := make([]*Codec, len(fieldSchemas))
+	nameFromIndex := make([]string, len(fieldSchemas))
+
 	for i, fieldSchema := range fieldSchemas {
 		fieldSchemaMap, ok := fieldSchema.(map[string]interface{})
 		if !ok {
@@ -33,8 +34,6 @@ func makeRecordCodec(st map[string]*Codec, enclosingNamespace string, schemaMap 
 		// NOTE: field names are not registered in the symbol table, because field names are not
 		// individually addressable codecs.
 
-		// fmt.Printf("%q field: %d; fieldSchemaMap: %v\n", recordName, i+1, fieldSchemaMap)
-		// fieldCodec, err := buildCodecForTypeDescribedByMap(st, nullNamespace, fieldSchemaMap)
 		fieldCodec, err := buildCodecForTypeDescribedByMap(st, c.typeName.namespace, fieldSchemaMap)
 		if err != nil {
 			return nil, fmt.Errorf("Record %q field %d ought to be valid Avro named type: %s", c.typeName, i+1, err)
@@ -45,28 +44,28 @@ func makeRecordCodec(st map[string]*Codec, enclosingNamespace string, schemaMap 
 			return nil, fmt.Errorf("Record %q field %d ought to have valid name: %v", c.typeName, i+1, fieldSchemaMap)
 		}
 		fieldName := n.short()
-		if _, ok := fieldNameDuplicateCheck[fieldName]; ok {
+		if _, ok := codecFromFieldName[fieldName]; ok {
 			return nil, fmt.Errorf("Record %q field %d ought to have unique name: %q", c.typeName, i+1, fieldName)
 		}
-		fieldNameDuplicateCheck[fieldName] = struct{}{}
-		fieldNames[i] = fieldName
-
-		fieldCodecs[i] = fieldCodec
+		nameFromIndex[i] = fieldName
+		codecFromIndex[i] = fieldCodec
+		codecFromFieldName[fieldName] = fieldCodec
 	}
 
 	c.binaryDecoder = func(buf []byte) (interface{}, []byte, error) {
-		recordMap := make(map[string]interface{}, len(fieldCodecs))
-		for i, fieldCodec := range fieldCodecs {
+		recordMap := make(map[string]interface{}, len(codecFromIndex))
+		for i, fieldCodec := range codecFromIndex {
 			var value interface{}
 			var err error
 			value, buf, err = fieldCodec.binaryDecoder(buf)
 			if err != nil {
 				return nil, buf, err
 			}
-			recordMap[fieldNames[i]] = value
+			recordMap[nameFromIndex[i]] = value
 		}
 		return recordMap, buf, nil
 	}
+
 	c.binaryEncoder = func(buf []byte, datum interface{}) ([]byte, error) {
 		valueMap, ok := datum.(map[string]interface{})
 		if !ok {
@@ -74,8 +73,8 @@ func makeRecordCodec(st map[string]*Codec, enclosingNamespace string, schemaMap 
 		}
 
 		// records encoded in order fields were defined in schema
-		for i, fieldCodec := range fieldCodecs {
-			fieldName := fieldNames[i]
+		for i, fieldCodec := range codecFromIndex {
+			fieldName := nameFromIndex[i]
 
 			// NOTE: If field value was not specified in map, then attempt to encode the nil
 			fieldValue, ok := valueMap[fieldName]
@@ -91,6 +90,23 @@ func makeRecordCodec(st map[string]*Codec, enclosingNamespace string, schemaMap 
 			}
 		}
 		return buf, nil
+	}
+
+	c.textDecoder = func(buf []byte) (interface{}, []byte, error) {
+		var mapValues map[string]interface{}
+		var err error
+		mapValues, buf, err = genericMapTextDecoder(buf, nil, codecFromFieldName) // defaultCodec == nil
+		if err != nil {
+			return nil, buf, err
+		}
+		if actual, expected := len(mapValues), len(codecFromFieldName); actual != expected {
+			return nil, buf, fmt.Errorf("cannot decode Record: only found %d of %d fields", actual, expected)
+		}
+		return mapValues, buf, nil
+	}
+
+	c.textEncoder = func(buf []byte, datum interface{}) ([]byte, error) {
+		return genericMapTextEncoder(buf, datum, nil, codecFromFieldName) // defaultCodec == nil
 	}
 
 	return c, nil

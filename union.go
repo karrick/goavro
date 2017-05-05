@@ -1,6 +1,7 @@
 package goavro
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 )
@@ -20,6 +21,7 @@ func buildCodecForTypeDescribedBySlice(st map[string]*Codec, enclosingNamespace 
 
 	allowedTypes := make([]string, len(schemaArray)) // used for error reporting when encoder receives invalid datum type
 	codecFromIndex := make([]*Codec, len(schemaArray))
+	codecFromKey := make(map[string]*Codec, len(schemaArray))
 	indexFromName := make(map[string]int, len(schemaArray))
 
 	for i, unionMemberSchema := range schemaArray {
@@ -34,6 +36,7 @@ func buildCodecForTypeDescribedBySlice(st map[string]*Codec, enclosingNamespace 
 		indexFromName[fullName] = i
 		allowedTypes[i] = fullName
 		codecFromIndex[i] = unionMemberCodec
+		codecFromKey[fullName] = unionMemberCodec
 	}
 
 	return &Codec{
@@ -81,6 +84,57 @@ func buildCodecForTypeDescribedBySlice(st map[string]*Codec, enclosingNamespace 
 					c := codecFromIndex[index]
 					buf, _ = longEncoder(buf, index)
 					return c.binaryEncoder(buf, value)
+				}
+			}
+			return buf, fmt.Errorf("cannot encode Union: non-nil values ought to be specified with Go map[string]interface{}, with single key equal to type name, and value equal to datum value: %v; received: %T", allowedTypes, datum)
+		},
+		textDecoder: func(buf []byte) (interface{}, []byte, error) {
+			if len(buf) >= 4 && bytes.Equal(buf[:4], []byte("null")) {
+				if _, ok := indexFromName["null"]; ok {
+					return nil, buf[4:], nil
+				}
+			}
+
+			var datum interface{}
+			var err error
+			datum, buf, err = genericMapTextDecoder(buf, nil, codecFromKey)
+			if err != nil {
+				return nil, buf, err
+			}
+
+			return datum, buf, nil
+		},
+		textEncoder: func(buf []byte, datum interface{}) ([]byte, error) {
+			switch v := datum.(type) {
+			case nil:
+				_, ok := indexFromName["null"]
+				if !ok {
+					return buf, fmt.Errorf("cannot encode Union: no member schema types support datum: allowed types: %v; received: %T", allowedTypes, datum)
+				}
+				return append(buf, "null"...), nil
+			case map[string]interface{}:
+				if len(v) != 1 {
+					return buf, fmt.Errorf("cannot encode Union: non-nil values ought to be specified with Go map[string]interface{}, with single key equal to type name, and value equal to datum value: %v; received: %T", allowedTypes, datum)
+				}
+				// will execute exactly once
+				for key, value := range v {
+					index, ok := indexFromName[key]
+					if !ok {
+						return buf, fmt.Errorf("cannot encode Union: no member schema types support datum: allowed types: %v; received: %T", allowedTypes, datum)
+					}
+					buf = append(buf, '{')
+					var err error
+					buf, err = stringTextEncoder(buf, key)
+					if err != nil {
+						return buf, err
+					}
+					buf = append(buf, ':')
+					c := codecFromIndex[index]
+					buf, err = c.textEncoder(buf, value)
+					if err != nil {
+						return buf, err
+					}
+					return append(buf, '}'), nil
 				}
 			}
 			return buf, fmt.Errorf("cannot encode Union: non-nil values ought to be specified with Go map[string]interface{}, with single key equal to type name, and value equal to datum value: %v; received: %T", allowedTypes, datum)

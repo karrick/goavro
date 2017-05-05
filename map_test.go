@@ -81,20 +81,40 @@ func TestMapDecodeNextBlockCountNegativeTooLarge(t *testing.T) {
 	testBinaryDecodeFail(t, `{"type":"map","values":"int"}`, append(append([]byte{1, 2, 4, 'k', '1', 6}, moreNegativeThanMaxBlockCount...), 2), "block count")
 }
 
-// TODO: key repeated in encoded map
-
 func TestMapDecodeFail(t *testing.T) {
-	testBinaryDecodeFail(t, `{"type":"map","values":"boolean"}`, nil, "cannot decode Map block count")           // leading block count
-	testBinaryDecodeFail(t, `{"type":"map","values":"boolean"}`, []byte("\x01"), "cannot decode Map block size") // when block count < 0
-	testBinaryDecodeFail(t, `{"type":"map","values":"boolean"}`, []byte("\x02\x04"), "cannot decode Map key")
-	testBinaryDecodeFail(t, `{"type":"map","values":"boolean"}`, []byte("\x02\x04"), "cannot decode Map key")
-	testBinaryDecodeFail(t, `{"type":"map","values":"boolean"}`, []byte("\x02\x04a"), "cannot decode Map key")
-	testBinaryDecodeFail(t, `{"type":"map","values":"boolean"}`, []byte("\x02\x04ab"), "cannot decode Map value")
-	testBinaryDecodeFail(t, `{"type":"map","values":"boolean"}`, []byte("\x02\x04ab\x02"), "boolean: expected")
-	testBinaryDecodeFail(t, `{"type":"map","values":"boolean"}`, []byte("\x02\x04ab\x01"), "cannot decode Map block count") // trailing block count
+	schema := `{"type":"map","values":"boolean"}`
+	testBinaryDecodeFail(t, schema, nil, "cannot decode Map block count")           // leading block count
+	testBinaryDecodeFail(t, schema, []byte("\x01"), "cannot decode Map block size") // when block count < 0
+	testBinaryDecodeFail(t, schema, []byte("\x02\x04"), "cannot decode Map key")
+	testBinaryDecodeFail(t, schema, []byte("\x02\x04"), "cannot decode Map key")
+	testBinaryDecodeFail(t, schema, []byte("\x02\x04a"), "cannot decode Map key")
+	testBinaryDecodeFail(t, schema, []byte("\x02\x04ab"), "cannot decode Map value")
+	testBinaryDecodeFail(t, schema, []byte("\x02\x04ab\x02"), "boolean: expected")
+	testBinaryDecodeFail(t, schema, []byte("\x02\x04ab\x01"), "cannot decode Map block count") // trailing block count
+	testBinaryDecodeFail(t, schema, []byte("\x04\x04ab\x00\x04ab\x00\x00"), "duplicate key")
 }
 
 func TestMap(t *testing.T) {
 	testBinaryCodecPass(t, `{"type":"map","values":"null"}`, map[string]interface{}{"ab": nil}, []byte("\x02\x04ab\x00"))
 	testBinaryCodecPass(t, `{"type":"map","values":"boolean"}`, map[string]interface{}{"ab": true}, []byte("\x02\x04ab\x01\x00"))
+}
+
+func TestMapTextDecodeFail(t *testing.T) {
+	schema := `{"type":"map","values":"string"}`
+	testTextDecodeFail(t, schema, []byte(`    "string"  :  "silly"  ,   "bytes"  : "silly" } `), "expected: '{'")
+	testTextDecodeFail(t, schema, []byte(`  {  16  :  "silly"  ,   "bytes"  : "silly" } `), "expected initial \"")
+	testTextDecodeFail(t, schema, []byte(`  {  "string"  ,  "silly"  ,   "bytes"  : "silly" } `), "expected: ':'")
+	testTextDecodeFail(t, schema, []byte(`  {  "string"  :  13  ,   "bytes"  : "silly" } `), "expected initial \"")
+	testTextDecodeFail(t, schema, []byte(`  {  "string"  :  "silly" :   "bytes"  : "silly" } `), "expected ',' or '}'")
+	testTextDecodeFail(t, schema, []byte(`  {  "string"  :  "silly"    "bytes"  : "silly" } `), "expected ',' or '}'")
+	testTextDecodeFail(t, schema, []byte(`  {  "string"  :  "silly" ,   "bytes"  : "silly"  `), "short buffer")
+	testTextDecodeFail(t, schema, []byte(`  {  "string"  :  "silly"  `), "short buffer")
+	testTextDecodeFail(t, schema, []byte(`{"key1":"\u0001\u2318 ","key1":"value2"}`), "duplicate key")
+}
+
+func TestMapTextCodecPass(t *testing.T) {
+	schema := `{"type":"map","values":"string"}`
+	datum := map[string]interface{}{"key1": "⌘ "}
+	testTextEncodePass(t, schema, datum, []byte(`{"key1":"\u0001\u2318 "}`))
+	testTextDecodePass(t, schema, datum, []byte(` { "key1" : "\u0001\u2318 " }`))
 }

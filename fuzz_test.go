@@ -382,11 +382,9 @@ func TestCrashers_OCF_e2e(t *testing.T) {
 
 		var datums []interface{}
 		for ocfr.Scan() {
-			datum, err := ocfr.Read()
-			if err != nil {
-				continue
+			if datum, err := ocfr.Read(); err == nil {
+				datums = append(datums, datum)
 			}
-			datums = append(datums, datum)
 		}
 
 		b := new(bytes.Buffer)
@@ -395,6 +393,9 @@ func TestCrashers_OCF_e2e(t *testing.T) {
 				W:      b,
 				Schema: ocfr.Schema(),
 			})
+		if err != nil {
+			panic(err)
+		}
 		if err := ocfw.Append(datums); err != nil {
 			panic(err)
 		}

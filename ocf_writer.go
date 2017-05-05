@@ -74,7 +74,7 @@ func NewOCFWriter(config OCFWriterConfig) (*OCFWriter, error) {
 	_ = copy(buf, magicBytes)
 
 	// file metadata, including the schema
-	hm := map[string]interface{}{"avro.schema": avroSchema, "avro.codec": avroCodec}
+	hm := map[string]interface{}{"avro.schema": []byte(avroSchema), "avro.codec": []byte(avroCodec)}
 	buf, err = metadataCodec.BinaryEncode(buf, hm)
 	if err != nil {
 		return nil, err
@@ -97,15 +97,35 @@ func NewOCFWriter(config OCFWriterConfig) (*OCFWriter, error) {
 	return ocfw, nil
 }
 
-// Append appends one or more data items to an OCF file in a block.
+// Append appends one or more data items to an OCF file in a block. If there are
+// more data items in the slice than MaxBlockCount allows, the data slice will
+// be chunked into multiple blocks, each not having more than MaxBlockCount
+// items.
 func (ocf *OCFWriter) Append(data []interface{}) error {
+	// Chunk data so no block has more than MaxBlockCount items.
+	for int64(len(data)) > MaxBlockCount {
+		if err := ocf.appendDataIntoBlock(data[:MaxBlockCount]); err != nil {
+			return err
+		}
+		data = data[MaxBlockCount:]
+	}
+	return ocf.appendDataIntoBlock(data)
+}
+
+func (ocf *OCFWriter) appendDataIntoBlock(data []interface{}) error {
+	// This check ought not be needed because this method is only called from
+	// Append method, which chunks data into blocks that do not exceed
+	// MaxBlockCount items.
+	if datalen := int64(len(data)); datalen > MaxBlockCount {
+		panic(fmt.Errorf("cannot encode data with more items than MaxBlockCount: %d > %d", datalen, MaxBlockCount))
+	}
+
 	var block []byte // working buffer for encoding data values
 	var err error
 
-	// TODO: Encode a maximum of MaxBlockCount data items in each block.
+	// Encode and concatenate each data item into the block
 	for _, datum := range data {
-		block, err = ocf.codec.BinaryEncode(block, datum)
-		if err != nil {
+		if block, err = ocf.codec.BinaryEncode(block, datum); err != nil {
 			return err
 		}
 	}

@@ -43,3 +43,10 @@ func TestEnumEncode(t *testing.T) {
 	testBinaryCodecPass(t, `{"type":"enum","name":"e1","symbols":["alpha","bravo"]}`, "alpha", []byte("\x00"))
 	testBinaryCodecPass(t, `{"type":"enum","name":"e1","symbols":["alpha","bravo"]}`, "bravo", []byte("\x02"))
 }
+
+func TestEnumTextCodec(t *testing.T) {
+	testTextCodecPass(t, `{"type":"enum","name":"e1","symbols":["alpha","bravo"]}`, "alpha", []byte(`"alpha"`))
+	testTextCodecPass(t, `{"type":"enum","name":"e1","symbols":["alpha","bravo"]}`, "bravo", []byte(`"bravo"`))
+	testTextEncodeFail(t, `{"type":"enum","name":"e1","symbols":["alpha","bravo"]}`, "charlie", `cannot encode Enum "e1": value ought to be member of symbols`)
+	testTextDecodeFail(t, `{"type":"enum","name":"e1","symbols":["alpha","bravo"]}`, []byte(`"charlie"`), `cannot decode Enum "e1": value ought to be member of symbols`)
+}

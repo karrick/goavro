@@ -28,20 +28,6 @@ func init() {
 	}
 }
 
-func testSchemaInvalid(t *testing.T, schema, errorMessage string) {
-	_, err := goavro.NewCodec(schema)
-	if err == nil || !strings.Contains(err.Error(), errorMessage) {
-		t.Errorf("Actual: %v; Expected: %s", err, errorMessage)
-	}
-}
-
-func testSchemaValid(t *testing.T, schema string) {
-	_, err := goavro.NewCodec(schema)
-	if err != nil {
-		t.Errorf("Actual: %v; Expected: %v", err, nil)
-	}
-}
-
 func testBinaryDecodeFail(t *testing.T, schema string, buf []byte, errorMessage string) {
 	c, err := goavro.NewCodec(schema)
 	if err != nil {
@@ -77,7 +63,7 @@ func testBinaryEncodeFailBadDatumType(t *testing.T, schema string, datum interfa
 	testBinaryEncodeFail(t, schema, datum, "received: ")
 }
 
-func testBinaryDecodeFailBufferUnderflow(t *testing.T, schema string, buf []byte) {
+func testBinaryDecodeFailShortBuffer(t *testing.T, schema string, buf []byte) {
 	testBinaryDecodeFail(t, schema, buf, "short buffer")
 }
 
@@ -92,12 +78,14 @@ func testBinaryDecodePass(t *testing.T, schema string, datum interface{}, encode
 		t.Fatalf("schema: %s; %s", schema, err)
 	}
 
-	// remaining ought to be empty because there is nothing remaining to be decoded
+	// remaining ought to be empty because there is nothing remaining to be
+	// decoded
 	if actual, expected := len(remaining), 0; actual != expected {
 		t.Errorf("schema: %s; Datum: %v; Actual: %#v; Expected: %#v", schema, datum, actual, expected)
 	}
 
-	// for testing purposes, to prevent big switch statement, convert each to string and compare.
+	// for testing purposes, to prevent big switch statement, convert each to
+	// string and compare.
 	if actual, expected := fmt.Sprintf("%v", value), fmt.Sprintf("%v", datum); actual != expected {
 		t.Errorf("schema: %s; Datum: %v; Actual: %#v; Expected: %#v", schema, datum, actual, expected)
 	}
@@ -118,9 +106,9 @@ func testBinaryEncodePass(t *testing.T, schema string, datum interface{}, expect
 	}
 }
 
-// testBinaryCodecPass does a bi-directional codec check, by encoding datum to bytes, then decoding
-// bytes back to datum.
+// testBinaryCodecPass does a bi-directional codec check, by encoding datum to
+// bytes, then decoding bytes back to datum.
 func testBinaryCodecPass(t *testing.T, schema string, datum interface{}, buf []byte) {
-	testBinaryEncodePass(t, schema, datum, buf)
 	testBinaryDecodePass(t, schema, datum, buf)
+	testBinaryEncodePass(t, schema, datum, buf)
 }

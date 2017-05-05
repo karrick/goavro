@@ -141,3 +141,10 @@ func TestUnionRecordFieldWhenNull(t *testing.T) {
 	testBinaryEncodePass(t, schema, map[string]interface{}{"f1": nil}, []byte("\x02"))
 	testBinaryEncodePass(t, schema, map[string]interface{}{}, []byte("\x02"))
 }
+
+func TestUnionText(t *testing.T) {
+	testTextEncodeFail(t, `["null","int"]`, goavro.Union("null", 3), "expected")
+	testTextCodecPass(t, `["null","int"]`, goavro.Union("null", nil), []byte("null"))
+	testTextCodecPass(t, `["null","int"]`, goavro.Union("int", 3), []byte(`{"int":3}`))
+	testTextCodecPass(t, `["null","int","string"]`, goavro.Union("string", "😂 "), []byte(`{"string":"\u0001\uD83D\uDE02 "}`))
+}

@@ -2,6 +2,7 @@ package goavro
 
 import (
 	"fmt"
+	"io"
 )
 
 // enum does not have child objects, therefore whatever namespace it defines is just to store its
@@ -41,7 +42,7 @@ func makeEnumCodec(st map[string]*Codec, enclosingNamespace string, schemaMap ma
 		if value, buf, err = longDecoder(buf); err != nil {
 			return nil, buf, fmt.Errorf("cannot decode Enum %q: index: %s", c.typeName, err)
 		}
-		index = value.(int64) // longDecoder always returns int64
+		index = value.(int64)
 		if index < 0 || index >= int64(len(symbols)) {
 			return nil, buf, fmt.Errorf("cannot decode Enum %q: index ought to be between 0 and %d; read index: %d", c.typeName, len(symbols)-1, index)
 		}
@@ -55,6 +56,37 @@ func makeEnumCodec(st map[string]*Codec, enclosingNamespace string, schemaMap ma
 		for i, symbol := range symbols {
 			if symbol == someString {
 				return longEncoder(buf, i)
+			}
+		}
+		return buf, fmt.Errorf("cannot encode Enum %q: value ought to be member of symbols: %v; %q", c.typeName, symbols, someString)
+	}
+	c.textDecoder = func(buf []byte) (interface{}, []byte, error) {
+		if buf, _ = advanceToNonWhitespace(buf); len(buf) == 0 {
+			return nil, buf, io.ErrShortBuffer
+		}
+		// decode enum string
+		var value interface{}
+		var err error
+		value, buf, err = stringTextDecoder(buf)
+		if err != nil {
+			return nil, buf, fmt.Errorf("cannot read Map: expected key: %s", err)
+		}
+		someString := value.(string)
+		for _, symbol := range symbols {
+			if symbol == someString {
+				return someString, buf, nil
+			}
+		}
+		return nil, buf, fmt.Errorf("cannot decode Enum %q: value ought to be member of symbols: %v; %q", c.typeName, symbols, someString)
+	}
+	c.textEncoder = func(buf []byte, datum interface{}) ([]byte, error) {
+		someString, ok := datum.(string)
+		if !ok {
+			return buf, fmt.Errorf("cannot encode Enum %q: expected string; received: %T", c.typeName, datum)
+		}
+		for _, symbol := range symbols {
+			if symbol == someString {
+				return stringTextEncoder(buf, someString)
 			}
 		}
 		return buf, fmt.Errorf("cannot encode Enum %q: value ought to be member of symbols: %v; %q", c.typeName, symbols, someString)

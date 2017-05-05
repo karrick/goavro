@@ -1,10 +1,48 @@
 package goavro_test
 
 import (
+	"fmt"
+	"strings"
 	"testing"
+
+	"github.com/karrick/goavro"
 )
 
-// NOTE: This file includes test cases that apply to more than one non-primitive data type.
+func testSchemaPrimativeCodec(t *testing.T, primitiveTypeName string) {
+	if _, err := goavro.NewCodec(primitiveTypeName); err != nil {
+		t.Errorf("Bare primitive type: Schema: %q; Actual: %#v; Expected: %#v", primitiveTypeName, err, nil)
+	}
+	quoted := `"` + primitiveTypeName + `"`
+	if _, err := goavro.NewCodec(quoted); err != nil {
+		t.Errorf("Bare primitive type: Schema: %q; Actual: %#v; Expected: %#v", quoted, err, nil)
+	}
+	full := fmt.Sprintf(`{"type":"%s"}`, primitiveTypeName)
+	if _, err := goavro.NewCodec(full); err != nil {
+		t.Errorf("Full primitive type: Schema: %q; Actual: %#v; Expected: %#v", full, err, nil)
+	}
+	extra := fmt.Sprintf(`{"type":"%s","ignoredKey":"ignoredValue"}`, primitiveTypeName)
+	if _, err := goavro.NewCodec(extra); err != nil {
+		t.Errorf("Full primitive type with extra attributes: Schema: %q; Actual: %#v; Expected: %#v", extra, err, nil)
+	}
+}
+
+func testSchemaInvalid(t *testing.T, schema, errorMessage string) {
+	_, err := goavro.NewCodec(schema)
+	if err == nil || !strings.Contains(err.Error(), errorMessage) {
+		t.Errorf("Actual: %v; Expected: %s", err, errorMessage)
+	}
+}
+
+func testSchemaValid(t *testing.T, schema string) {
+	_, err := goavro.NewCodec(schema)
+	if err != nil {
+		t.Errorf("Actual: %v; Expected: %v", err, nil)
+	}
+}
+
+func TestSchemaFailInvalidType(t *testing.T) {
+	testSchemaInvalid(t, `{"type":"flubber"}`, "unknown type name")
+}
 
 func TestSchemaWeather(t *testing.T) {
 	testSchemaValid(t, `
@@ -85,8 +123,8 @@ func TestSchemaFixedNameCanBeUsedLater(t *testing.T) {
                    {"name":"field2","type":"fixed_4"}]}`
 
 	datum := map[string]interface{}{
-		"field1": "abcd",
-		"field2": "efgh",
+		"field1": []byte("abcd"),
+		"field2": []byte("efgh"),
 	}
 
 	testBinaryEncodePass(t, schema, datum, []byte("abcdefgh"))
@@ -99,7 +137,7 @@ func TestMapValueTypeEnum(t *testing.T) {
 
 	expected := []byte{
 		0x2, // blockCount = 1 pair
-		0xe, // key length = 7
+		0xe, // key size = 7
 		's', 'o', 'm', 'e', 'K', 'e', 'y',
 		0x2, // value = index 1 ("bravo")
 		0,   // blockCount = 0 pairs
@@ -120,10 +158,10 @@ func TestMapValueTypeRecord(t *testing.T) {
 
 	expected := []byte{
 		0x2,                               // blockCount = 1 key-value pair in top level map
-		0xe,                               // first key length = 7
+		0xe,                               // first key size = 7
 		'm', 'a', 'p', '-', 'k', 'e', 'y', // first key = "map-key"
 		// this key's value is a record, which is encoded by concatenated its field values
-		0x0e, // field one string length = 7
+		0x0e, // field one string size = 7
 		'u', 'n', 'l', 'u', 'c', 'k', 'y',
 		0x1a, // 13
 		0,    // map has no more blocks

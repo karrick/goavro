@@ -70,11 +70,11 @@ func TestArrayReceiveSliceInt(t *testing.T) {
 
 func TestArrayBytes(t *testing.T) {
 	testBinaryCodecPass(t, `{"type":"array","items":"bytes"}`, []interface{}(nil), []byte{0})                           // item count == 0
-	testBinaryCodecPass(t, `{"type":"array","items":"bytes"}`, []interface{}{[]byte("foo")}, []byte("\x02\x06foo\x00")) // item count == 1, item 1 length == 3, foo, no more items
+	testBinaryCodecPass(t, `{"type":"array","items":"bytes"}`, []interface{}{[]byte("foo")}, []byte("\x02\x06foo\x00")) // item count == 1, item 1 size == 3, foo, no more items
 	testBinaryCodecPass(t, `{"type":"array","items":"bytes"}`, []interface{}{[]byte("foo"), []byte("bar")}, []byte("\x04\x06foo\x06bar\x00"))
 
 	testBinaryCodecPass(t, `{"type":"array","items":"bytes"}`, [][]byte(nil), []byte{0})                           // item count == 0
-	testBinaryCodecPass(t, `{"type":"array","items":"bytes"}`, [][]byte{[]byte("foo")}, []byte("\x02\x06foo\x00")) // item count == 1, item 1 length == 3, foo, no more items
+	testBinaryCodecPass(t, `{"type":"array","items":"bytes"}`, [][]byte{[]byte("foo")}, []byte("\x02\x06foo\x00")) // item count == 1, item 1 size == 3, foo, no more items
 	testBinaryCodecPass(t, `{"type":"array","items":"bytes"}`, [][]byte{[]byte("foo"), []byte("bar")}, []byte("\x04\x06foo\x06bar\x00"))
 }
 
@@ -85,11 +85,29 @@ func TestArrayEncodeError(t *testing.T) {
 }
 
 func TestArrayEncodeErrorFIXME(t *testing.T) {
-	// NOTE: Would be better if returns error, however, because only the length is encoded, the
+	// NOTE: Would be better if returns error, however, because only the size is encoded, the
 	// items encoder is never invoked to detect it is the wrong slice type
 	if false {
 		testBinaryEncodeFailBadDatumType(t, `{"type":"array","items":"int"}`, []string{})
 	} else {
 		testBinaryCodecPass(t, `{"type":"array","items":"int"}`, []string{}, []byte{0})
 	}
+}
+
+func TestArrayTextDecodeFail(t *testing.T) {
+	schema := `{"type":"array","items":"string"}`
+	testTextDecodeFail(t, schema, []byte(`   "v1"  ,  "v2"  ]  `), "expected: '['")
+	testTextDecodeFail(t, schema, []byte(` [  13  ,  "v2"  ]  `), "expected initial \"")
+	testTextDecodeFail(t, schema, []byte(` [  "v1  ,  "v2"  ]  `), "expected ',' or ']'")
+	testTextDecodeFail(t, schema, []byte(` [  "v1"    "v2"  ]  `), "expected ',' or ']'")
+	testTextDecodeFail(t, schema, []byte(` [  "v1"  ,  13  ]  `), "expected initial \"")
+	testTextDecodeFail(t, schema, []byte(` [  "v1"  ,  "v2  ]  `), "expected final \"")
+	testTextDecodeFail(t, schema, []byte(` [  "v1"  ,  "v2"    `), "short buffer")
+}
+
+func TestArrayTextCodecPass(t *testing.T) {
+	schema := `{"type":"array","items":"string"}`
+	datum := []interface{}{"⌘ ", "value2"}
+	testTextEncodePass(t, schema, datum, []byte(`["\u0001\u2318 ","value2"]`))
+	testTextDecodePass(t, schema, datum, []byte(` [ "\u0001\u2318 " , "value2" ]`))
 }

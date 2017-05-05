@@ -51,11 +51,19 @@ func TestFixedEncodeUnsupportedType(t *testing.T) {
 }
 
 func TestFixedEncodeWrongSize(t *testing.T) {
-	testBinaryEncodeFail(t, `{"type":"fixed","name":"foo","size":4}`, "abcde", "datum size ought to equal schema size")
-	testBinaryEncodeFail(t, `{"type":"fixed","name":"foo","size":4}`, "abc", "datum size ought to equal schema size")
+	testBinaryEncodeFail(t, `{"type":"fixed","name":"foo","size":4}`, []byte("abcde"), "datum size ought to equal schema size")
+	testBinaryEncodeFail(t, `{"type":"fixed","name":"foo","size":4}`, []byte("abc"), "datum size ought to equal schema size")
 }
 
 func TestFixedEncode(t *testing.T) {
 	testBinaryCodecPass(t, `{"type":"fixed","name":"foo","size":4}`, []byte("abcd"), []byte("abcd"))
-	testBinaryEncodePass(t, `{"type":"fixed","name":"foo","size":4}`, "abcd", []byte("abcd")) // decodes to bytes rather than string
+}
+
+func TestFixedTextCodec(t *testing.T) {
+	schema := `{"type":"fixed","name":"f1","size":4}`
+	testTextDecodeFail(t, schema, []byte(`"\u0001\u0002\u0003"`), "datum size ought to equal schema size")
+	testTextDecodeFail(t, schema, []byte(`"\u0001\u0002\u0003\u0004\u0005"`), "datum size ought to equal schema size")
+	testTextEncodeFail(t, schema, []byte{1, 2, 3}, "datum size ought to equal schema size")
+	testTextEncodeFail(t, schema, []byte{1, 2, 3, 4, 5}, "datum size ought to equal schema size")
+	testTextEncodePass(t, schema, []byte{1, 2, 3, 4}, []byte(`"\u0001\u0002\u0003\u0004"`))
 }
