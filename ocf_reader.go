@@ -154,12 +154,17 @@ func (ocfr *OCFReader) Scan() bool {
 			ocfr.err = fmt.Errorf("cannot read block size: %d; %s", blockSize, ocfr.err)
 			return false
 		}
+<<<<<<< HEAD
 		if blockSize <= 0 {
 			ocfr.err = fmt.Errorf("cannot decode when block size is not greater than 0: %d", ocfr.remainingItems)
 			return false
 		}
 		if blockSize > MaxBlockSize {
 			ocfr.err = fmt.Errorf("cannot decode when block size exceeds MaxBlockSize: %d > %d", blockSize, MaxBlockSize)
+=======
+		if blockSize < 0 {
+			ocfr.err = fmt.Errorf("the size of a block can't be negative")
+>>>>>>> Fix negative block sizes
 			return false
 		}
 
