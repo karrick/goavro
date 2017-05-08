@@ -277,7 +277,10 @@ func metadataReader(br *bufio.Reader) (map[string][]byte, error) {
 	if initialSize < 0 {
 		initialSize = -initialSize
 	}
-	mapValues := make(map[string][]byte, initialSize)
+	mapValues := make(map[string][]byte)
+	if initialSize < MaxAllocationSize {
+		mapValues = make(map[string][]byte, initialSize)
+	}
 
 	for blockCount != 0 {
 		if blockCount < 0 {

@@ -27,7 +27,8 @@ func TestCrashers_OCFReader(t *testing.T) {
 			"00000000\"}\x14000000000" +
 			"0\b0000\x000000000000000" +
 			"0000\xd90",
-		"bytesReader: size overflow": "Obj\x010\xa2\x8f\xdc\xf8\xa30",
+		"bytesReader: size overflow":           "Obj\x010\xa2\x8f\xdc\xf8\xa30",
+		"metadataReader: initialSize overflow": "Obj\x01\xa6ʌ\xce0",
 	}
 
 	for testName, f := range crashers {
