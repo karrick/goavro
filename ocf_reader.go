@@ -159,6 +159,10 @@ func (ocfr *OCFReader) Scan() bool {
 			ocfr.err = fmt.Errorf("the size of a block can't be negative")
 			return false
 		}
+		if blockSize > MaxAllocationSize {
+			ocfr.err = fmt.Errorf("implementation error: length of a block (%d) is greater than the max currentl    y allowed with MaxAllocationSize (%d)", blockSize, MaxAllocationSize)
+			return false
+		}
 
 		// read entire block into buffer
 		ocfr.block = make([]byte, blockSize)

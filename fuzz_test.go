@@ -178,6 +178,28 @@ func TestCrashers_OCF_e2e(t *testing.T) {
 			"\x00\x00\x00\x00\x00\x00\x11\"\t\x10\x90\x04\x16TEST_ST" +
 			"R123\x00\x04\x00\x02S\xfeJ\x17\u007f\xb4r\x11\x0e\x96&\x0e" +
 			"\xda<\xed\x86\xf6",
+		"scan: blockSize overflow": "Obj\x01\x04\x14avro.codec\fsna" +
+			"ppy\x16avro.schema\xf2\x05{\"t" +
+			"ype\":\"record\",\"name\"" +
+			":\"twitter_schema\",\"n" +
+			"amespace\":\"com.migun" +
+			"o.avro\",\"fields\":[{\"" +
+			"name\":\"username\",\"ty" +
+			"pe\":\"string\",\"doc\":\"" +
+			"Name of the user acc" +
+			"ount on Twitter.com\"" +
+			"},{\"name\":\"tweet\",\"t" +
+			"ype\":\"string\",\"doc\":" +
+			"\"The content of the " +
+			"user's Twitter messa" +
+			"ge\"},{\"name\":\"timest" +
+			"amp\",\"type\":\"long\",\"" +
+			"doc\":\"Unix epoch tim" +
+			"e in milliseconds\"}]" +
+			",\"doc:\":\"A basic sch" +
+			"ema for storing Twit" +
+			"ter messages\"}\x00.\xe2\xf3\xee\x96" +
+			"\nw2\xc3*5\\\x951\xa4\xae~\xa2\x8f\xdc\xf8\xa3H",
 	}
 
 	for testName, f := range crashers {
