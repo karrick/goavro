@@ -34,6 +34,9 @@ func makeArrayCodec(st map[string]*Codec, enclosingNamespace string, schemaMap m
 			if initialSize < 0 {
 				initialSize = -initialSize
 			}
+			if initialSize > MaxAllocationSize {
+				return nil, buf, fmt.Errorf("array: implementation error: length of array (%d) is greater than the max currently MaxAllocationSize (%d)", initialSize, MaxAllocationSize)
+			}
 			arrayValues := make([]interface{}, 0, initialSize)
 
 			for blockCount != 0 {
