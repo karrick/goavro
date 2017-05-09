@@ -5,15 +5,29 @@ package goavro
 type Compression uint8
 
 const (
-	CompressionNull    Compression = iota // CompressionNull is used when OCF blocks are not compressed.
-	CompressionDeflate                    // CompressionDeflate is used when OCF blocks are compressed using the deflate algorithm.
-	CompressionSnappy                     // CompressionSnappy is used when OCF blocks are compressed using the snappy algorithm.
+	// CompressionNull is used when OCF blocks are not compressed.
+	CompressionNull Compression = iota
+
+	// CompressionDeflate is used when OCF blocks are compressed using the
+	// deflate algorithm.
+	CompressionDeflate
+
+	// CompressionSnappy is used when OCF blocks are compressed using the snappy
+	// algorithm.
+	CompressionSnappy
 )
 
 const (
-	CompressionNullLabel    = "null"
+	// CompressionNullLabel is used when OCF blocks are not compressed.
+	CompressionNullLabel = "null"
+
+	// CompressionDeflateLabel is used when OCF blocks are compressed using the
+	// deflate algorithm.
 	CompressionDeflateLabel = "deflate"
-	CompressionSnappyLabel  = "snappy"
+
+	// CompressionSnappyLabel is used when OCF blocks are compressed using the
+	// snappy algorithm.
+	CompressionSnappyLabel = "snappy"
 )
 
 const (

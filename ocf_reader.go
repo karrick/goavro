@@ -218,6 +218,7 @@ func (ocfr *OCFReader) Read() (interface{}, error) {
 	return ocfr.datum, nil
 }
 
+// Schema returns the schema found within the OCF file.
 func (ocfr *OCFReader) Schema() string {
 	return ocfr.schema
 }

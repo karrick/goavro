@@ -97,6 +97,7 @@ func NewOCFWriter(config OCFWriterConfig) (*OCFWriter, error) {
 	return ocfw, nil
 }
 
+// Append appends one or more data items to an OCF file in a block.
 func (ocf *OCFWriter) Append(data []interface{}) error {
 	var block []byte // working buffer for encoding data values
 	var err error
