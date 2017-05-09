@@ -135,6 +135,10 @@ func (ocfr *OCFReader) Scan() bool {
 			ocfr.err = fmt.Errorf("cannot read block size: %d; %s", blockSize, ocfr.err)
 			return false
 		}
+		if blockSize < 0 {
+			ocfr.err = fmt.Errorf("the size of a block can't be negative")
+			return false
+		}
 
 		// read entire block into buffer
 		ocfr.block = make([]byte, blockSize)
