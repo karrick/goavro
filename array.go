@@ -27,9 +27,10 @@ func makeArrayCodec(st map[string]*Codec, enclosingNamespace string, schemaMap m
 			}
 			blockCount := value.(int64)
 
-			// NOTE: While below RAM optimization not necessary, many encoders will encode all
-			// array items in a single block.  We can optimize amount of RAM allocated by
-			// runtime for the array by initializing the array for that number of items.
+			// NOTE: While the attempt of a RAM optimization shown below is not
+			// necessary, many encoders will encode all array items in a single
+			// block.  We can optimize amount of RAM allocated by runtime for
+			// the array by initializing the array for that number of items.
 			initialSize := blockCount
 			if initialSize < 0 {
 				initialSize = -initialSize

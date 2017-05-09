@@ -27,9 +27,10 @@ func makeMapCodec(st map[string]*Codec, namespace string, schemaMap map[string]i
 			}
 			blockCount := value.(int64)
 
-			// NOTE: While below RAM optimization not necessary, many encoders will encode all
-			// key-value pairs in a single block.  We can optimize amount of RAM allocated by
-			// runtime for the map by initializing the map for that number of pairs.
+			// NOTE: While the attempt of a RAM optimization shown below is not
+			// necessary, many encoders will encode all array items in a single
+			// block.  We can optimize amount of RAM allocated by runtime for
+			// the array by initializing the array for that number of items.
 			initialSize := blockCount
 			if initialSize < 0 {
 				initialSize = -initialSize

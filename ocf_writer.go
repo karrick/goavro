@@ -53,7 +53,7 @@ func NewOCFWriter(config OCFWriterConfig) (*OCFWriter, error) {
 		avroCodec = CompressionSnappyLabel
 		ocfw.compression = CompressionSnappy
 	default:
-		return nil, fmt.Errorf("cannot compress using unrecognized compression: %d", config.Compression)
+		return nil, fmt.Errorf("cannot compress using unrecognized compression algorithm: %d", config.Compression)
 	}
 
 	var err error
@@ -158,9 +158,9 @@ func compactSchema(schema string) (string, error) {
 		return "", fmt.Errorf("cannot unmarshal schema: %v", err)
 	}
 	// second: re-encode into compressed JSON
-	canonicalSchema, err := json.Marshal(schemaBlob)
+	compact, err := json.Marshal(schemaBlob)
 	if err != nil {
 		return "", fmt.Errorf("cannot marshal schema: %s", err)
 	}
-	return string(canonicalSchema), nil
+	return string(compact), nil
 }

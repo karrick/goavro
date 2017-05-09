@@ -67,7 +67,7 @@ func NewOCFReader(ior io.Reader) (*OCFReader, error) {
 		case CompressionSnappyLabel:
 			compression = CompressionSnappy
 		default:
-			return nil, fmt.Errorf("cannot decompress using unrecognized compression avro.codec: %q", avroCodec)
+			return nil, fmt.Errorf("cannot decompress using unrecognized compression algorithm from avro.codec: %q", avroCodec)
 		}
 	}
 
@@ -136,7 +136,7 @@ func (ocfr *OCFReader) Scan() bool {
 			return false
 		}
 		if blockSize < 0 {
-			ocfr.err = fmt.Errorf("the size of a block can't be negative")
+			ocfr.err = fmt.Errorf("cannot decode block with negative size: %d", blockSize)
 			return false
 		}
 
@@ -251,9 +251,10 @@ func metadataReader(br *bufio.Reader) (map[string][]byte, error) {
 	if err != nil {
 		return nil, fmt.Errorf("cannot read Map block count: %s", err)
 	}
-	// NOTE: While below RAM optimization not necessary, many encoders will encode all
-	// key-value pairs in a single block.  We can optimize amount of RAM allocated by
-	// runtime for the map by initializing the map for that number of pairs.
+	// NOTE: While the attempt of a RAM optimization shown below is not
+	// necessary, many encoders will encode all array items in a single block.
+	// We can optimize amount of RAM allocated by runtime for the array by
+	// initializing the array for that number of items.
 	initialSize := blockCount
 	if initialSize < 0 {
 		initialSize = -initialSize
