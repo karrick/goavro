@@ -21,10 +21,10 @@ func makeFixedCodec(st map[string]*Codec, enclosingNamespace string, schemaMap m
 	if !ok {
 		return nil, fmt.Errorf("Fixed %q size ought to be number greater than zero: %v", c.typeName, s1)
 	}
-	size := uint(s2)
-	if size == 0 {
+	if s2 <= 0 {
 		return nil, fmt.Errorf("Fixed %q size ought to be number greater than zero: %v", c.typeName, s1)
 	}
+	size := uint(s2)
 
 	c.binaryDecoder = func(buf []byte) (interface{}, []byte, error) {
 		if buflen := uint(len(buf)); size > buflen {

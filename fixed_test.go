@@ -51,8 +51,8 @@ func TestFixedEncodeUnsupportedType(t *testing.T) {
 }
 
 func TestFixedEncodeWrongSize(t *testing.T) {
-	testBinaryEncodeFail(t, `{"type":"fixed","name":"foo","size":4}`, "abcde", "datum length ought to equal size")
-	testBinaryEncodeFail(t, `{"type":"fixed","name":"foo","size":4}`, "abc", "datum length ought to equal size")
+	testBinaryEncodeFail(t, `{"type":"fixed","name":"foo","size":4}`, "abcde", "datum size ought to equal schema size")
+	testBinaryEncodeFail(t, `{"type":"fixed","name":"foo","size":4}`, "abc", "datum size ought to equal schema size")
 }
 
 func TestFixedEncode(t *testing.T) {
