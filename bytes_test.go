@@ -37,10 +37,6 @@ func TestPrimitiveBytesText(t *testing.T) {
 	testTextCodecPass(t, "bytes", []byte("a\tb"), []byte(`"a\tb"`))
 	testTextCodecPass(t, "bytes", []byte("a	b"), []byte(`"a\tb"`)) // tab byte between a and b
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> bytes and string text encode and decode pass tests
 	testTextDecodeFail(t, "bytes", []byte("\"\\u\""), "short buffer")
 	testTextDecodeFail(t, "bytes", []byte("\"\\u.\""), "short buffer")
 	testTextDecodeFail(t, "bytes", []byte("\"\\u..\""), "short buffer")
@@ -54,18 +50,6 @@ func TestPrimitiveBytesText(t *testing.T) {
 	testTextDecodeFail(t, "bytes", []byte("\"\\ugggg\""), "invalid byte") // > 'f'
 
 	testTextCodecPass(t, "bytes", []byte("⌘ "), []byte("\"\\u0001\\u00E2\\u008C\\u0098 \""))
-<<<<<<< HEAD
-=======
-	testTextDecodeFailShortBuffer(t, "bytes", []byte("\"a\\u\""))
-	testTextDecodeFailShortBuffer(t, "bytes", []byte("\"a\\u0\""))
-	testTextDecodeFailShortBuffer(t, "bytes", []byte("\"a\\u00\""))
-	testTextDecodeFailShortBuffer(t, "bytes", []byte("\"a\\u004\""))
-
-	testTextCodecPass(t, "bytes", []byte("⌘"), []byte(`"\u00E2\u008C\u0098"`))
-
->>>>>>> Avro bytes text working; Avro string text still needs Unicode help for emojis
-=======
->>>>>>> bytes and string text encode and decode pass tests
 	testTextCodecPass(t, "bytes", []byte("😂"), []byte(`"\u00F0\u009F\u0098\u0082"`))
 }
 
@@ -102,10 +86,6 @@ func TestPrimitiveStringText(t *testing.T) {
 	testTextCodecPass(t, "string", "a\tb", []byte(`"a\tb"`))
 	testTextCodecPass(t, "string", "a	b", []byte(`"a\tb"`)) // tab byte between a and b
 
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> bytes and string text encode and decode pass tests
 	testTextDecodeFail(t, "string", []byte("\"\\u\""), "short buffer")
 	testTextDecodeFail(t, "string", []byte("\"\\u.\""), "short buffer")
 	testTextDecodeFail(t, "string", []byte("\"\\u..\""), "short buffer")
@@ -126,18 +106,4 @@ func TestPrimitiveStringText(t *testing.T) {
 	testTextDecodeFail(t, "string", []byte("\"\\uD83D\\uD\""), "surrogate pair")
 	testTextDecodeFail(t, "string", []byte("\"\\uD83D\\uDE\""), "surrogate pair")
 	testTextDecodeFail(t, "string", []byte("\"\\uD83D\\uDE0\""), "invalid byte")
-<<<<<<< HEAD
-=======
-	testTextDecodeFail(t, "string", []byte("\"a\\u\""), "short buffer")
-	testTextDecodeFail(t, "string", []byte("\"a\\u0\""), "short buffer")
-	testTextDecodeFail(t, "string", []byte("\"a\\u00\""), "short buffer")
-	testTextDecodeFail(t, "string", []byte("\"a\\u004\""), "short buffer")
-
-	testTextCodecPass(t, "string", "⌘", []byte("\"\\u2318\""))
-
-	// testTextEncodePass(t, "string", "😂", []byte("\"\\uD83D\\uDE02\""))
-	// testTextDecodePass(t, "string", "😂", []byte("\"\\uD83D\\uDE02\""))
->>>>>>> Avro bytes text working; Avro string text still needs Unicode help for emojis
-=======
->>>>>>> bytes and string text encode and decode pass tests
 }

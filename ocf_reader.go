@@ -154,21 +154,12 @@ func (ocfr *OCFReader) Scan() bool {
 			ocfr.err = fmt.Errorf("cannot read block size: %d; %s", blockSize, ocfr.err)
 			return false
 		}
-<<<<<<< HEAD
 		if blockSize <= 0 {
 			ocfr.err = fmt.Errorf("cannot decode when block size is not greater than 0: %d", ocfr.remainingItems)
 			return false
 		}
 		if blockSize > MaxBlockSize {
 			ocfr.err = fmt.Errorf("cannot decode when block size exceeds MaxBlockSize: %d > %d", blockSize, MaxBlockSize)
-=======
-		if blockSize < 0 {
-<<<<<<< HEAD
-			ocfr.err = fmt.Errorf("the size of a block can't be negative")
->>>>>>> Fix negative block sizes
-=======
-			ocfr.err = fmt.Errorf("cannot decode block with negative size: %d", blockSize)
->>>>>>> comments and error messages
 			return false
 		}
 
@@ -308,19 +299,9 @@ func metadataBinaryReader(br *bufio.Reader) (map[string][]byte, error) {
 			return nil, fmt.Errorf("cannot decode Map block size: %s", err)
 		}
 	}
-<<<<<<< HEAD
 	// Ensure block count does not exceed some sane value.
 	if blockCount > MaxBlockCount {
 		return nil, fmt.Errorf("cannot decode Map when block count exceeds MaxBlockCount: %d > %d", blockCount, MaxBlockCount)
-=======
-	// NOTE: While the attempt of a RAM optimization shown below is not
-	// necessary, many encoders will encode all array items in a single block.
-	// We can optimize amount of RAM allocated by runtime for the array by
-	// initializing the array for that number of items.
-	initialSize := blockCount
-	if initialSize < 0 {
-		initialSize = -initialSize
->>>>>>> comments and error messages
 	}
 	// NOTE: While the attempt of a RAM optimization shown below is not
 	// necessary, many encoders will encode all items in a single block.

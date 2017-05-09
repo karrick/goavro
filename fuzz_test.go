@@ -1,10 +1,7 @@
 package goavro
 
 import (
-<<<<<<< HEAD
 	"bytes"
-=======
->>>>>>> Fix negative block sizes
 	"strings"
 	"testing"
 )
@@ -38,7 +35,6 @@ func TestCrashers_OCFReader(t *testing.T) {
 		NewOCFReader(strings.NewReader(f))
 	}
 }
-<<<<<<< HEAD
 
 func TestCrashers_OCF_e2e(t *testing.T) {
 	var crashers = map[string]string{
@@ -405,5 +401,3 @@ func TestCrashers_OCF_e2e(t *testing.T) {
 		}
 	}
 }
-=======
->>>>>>> Fix negative block sizes

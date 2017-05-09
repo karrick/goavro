@@ -97,14 +97,10 @@ func NewOCFWriter(config OCFWriterConfig) (*OCFWriter, error) {
 	return ocfw, nil
 }
 
-<<<<<<< HEAD
 // Append appends one or more data items to an OCF file in a block. If there are
 // more data items in the slice than MaxBlockCount allows, the data slice will
 // be chunked into multiple blocks, each not having more than MaxBlockCount
 // items.
-=======
-// Append appends one or more data items to an OCF file in a block.
->>>>>>> golint fixes
 func (ocf *OCFWriter) Append(data []interface{}) error {
 	// Chunk data so no block has more than MaxBlockCount items.
 	for int64(len(data)) > MaxBlockCount {

@@ -28,7 +28,6 @@ func makeArrayCodec(st map[string]*Codec, enclosingNamespace string, schemaMap m
 				return nil, buf, fmt.Errorf("cannot decode Array block count: %s", err)
 			}
 			blockCount := value.(int64)
-<<<<<<< HEAD
 			if blockCount < 0 {
 				// NOTE: A negative block count implies there is a long encoded
 				// block size following the negative block count. We have no use
@@ -42,16 +41,6 @@ func makeArrayCodec(st map[string]*Codec, enclosingNamespace string, schemaMap m
 			// Ensure block count does not exceed some sane value.
 			if blockCount > MaxBlockCount {
 				return nil, buf, fmt.Errorf("cannot decode Array when block count exceeds MaxBlockCount: %d > %d", blockCount, MaxBlockCount)
-=======
-
-			// NOTE: While the attempt of a RAM optimization shown below is not
-			// necessary, many encoders will encode all array items in a single
-			// block.  We can optimize amount of RAM allocated by runtime for
-			// the array by initializing the array for that number of items.
-			initialSize := blockCount
-			if initialSize < 0 {
-				initialSize = -initialSize
->>>>>>> comments and error messages
 			}
 			// NOTE: While the attempt of a RAM optimization shown below is not
 			// necessary, many encoders will encode all items in a single block.

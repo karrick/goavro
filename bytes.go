@@ -2,45 +2,12 @@ package goavro
 
 import (
 	"encoding/hex"
-<<<<<<< HEAD
-<<<<<<< HEAD
 	"errors"
 	"fmt"
 	"io"
 	"unicode"
 	"unicode/utf16"
-=======
-	"fmt"
-	"io"
-	"strconv"
-<<<<<<< HEAD
->>>>>>> Avro bytes text working; Avro string text still needs Unicode help for emojis
-=======
-=======
-	"errors"
-	"fmt"
-	"io"
->>>>>>> code refactor
-	"unicode"
-	"unicode/utf16"
->>>>>>> bytes and string text encode and decode pass tests
 	"unicode/utf8"
-)
-
-const hexDigits = "0123456789ABCDEF"
-
-// While slices in Go are never constants, we can initialize them once and reuse
-// them many times.
-var (
-	sliceQuote          = []byte("\\\"")
-	sliceBackslash      = []byte("\\\\")
-	sliceSlash          = []byte("\\/")
-	sliceBackspace      = []byte("\\b")
-	sliceFormfeed       = []byte("\\f")
-	sliceNewline        = []byte("\\n")
-	sliceCarriageReturn = []byte("\\r")
-	sliceTab            = []byte("\\t")
-	sliceUnicode        = []byte("\\u")
 )
 
 ////////////////////////////////////////
@@ -101,15 +68,6 @@ func stringEncoder(buf []byte, datum interface{}) ([]byte, error) {
 ////////////////////////////////////////
 
 func bytesTextDecoder(buf []byte) (interface{}, []byte, error) {
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
-	// var tmp [utf8.UTFMax]byte
-	var tmp [1]byte
-=======
->>>>>>> bytes and string text encode and decode pass tests
-	// scan each character, being mindful of escape sequence. once find unescaped quote, we're done
->>>>>>> Avro bytes text working; Avro string text still needs Unicode help for emojis
 	buflen := len(buf)
 	if buflen < 2 {
 		return nil, buf, io.ErrShortBuffer
@@ -117,7 +75,6 @@ func bytesTextDecoder(buf []byte) (interface{}, []byte, error) {
 	if buf[0] != '"' {
 		return nil, buf, fmt.Errorf("expected initial \"; found: %c", buf[0])
 	}
-<<<<<<< HEAD
 	var newBytes []byte
 	var escaped bool
 	// Loop through bytes following initial double quote, but note we will
@@ -151,47 +108,6 @@ func bytesTextDecoder(buf []byte) (interface{}, []byte, error) {
 				continue
 			}
 			newBytes = append(newBytes, b)
-=======
-
-	var newBytes []byte
-	var escaped bool
-
-	// Loop through all remaining bytes, but note we will terminate early when
-	// find unescaped double quote.
-	for i := 1; i < buflen; i++ {
-		b := buf[i]
-		if escaped {
-			escaped = false
-			if b2, ok := unescapeSpecialJSON(b); ok {
-				newBytes = append(newBytes, b2)
-				continue
-			}
-			if b == 'u' {
-				// NOTE: Need at least 4 more bytes to read uint16, but subtract
-				// 1 because do not want to count the trailing quote and
-				// subtract another 1 because already consumed u but have yet to
-				// increment i.
-				if i > buflen-6 {
-					return nil, buf, io.ErrShortBuffer
-				}
-				// NOTE: Avro bytes represent binary data, and do not
-				// necessarily represent text. Therefore, Avro bytes are not
-				// encoded in UTF-16. Each \u is followed by 4 hexidecimal
-				// digits, the first of which must be 0.
-				v, err := parseUint64FromHexSlice(buf[i+3 : i+5])
-				if err != nil {
-					return nil, buf, err
-				}
-				i += 4 // absorb 4 characters: one 'u' and three of the digits
-				newBytes = append(newBytes, byte(v))
-				continue
-			}
-<<<<<<< HEAD
-			escaped = false
->>>>>>> Avro bytes text working; Avro string text still needs Unicode help for emojis
-=======
-			newBytes = append(newBytes, b)
->>>>>>> bytes and string text encode and decode pass tests
 			continue
 		}
 		if b == '\\' {
@@ -199,8 +115,6 @@ func bytesTextDecoder(buf []byte) (interface{}, []byte, error) {
 			continue
 		}
 		if b == '"' {
-<<<<<<< HEAD
-<<<<<<< HEAD
 			return newBytes, buf[i+1:], nil
 		}
 		newBytes = append(newBytes, b)
@@ -209,20 +123,6 @@ func bytesTextDecoder(buf []byte) (interface{}, []byte, error) {
 }
 
 func stringTextDecoder(buf []byte) (interface{}, []byte, error) {
-=======
-			break
-=======
-			return newBytes, buf[i+1:], nil
->>>>>>> code refactor
-		}
-		newBytes = append(newBytes, b)
-	}
-	return nil, buf, fmt.Errorf("expected final \"; found: %c", buf[buflen-1])
-}
-
-func stringTextDecoder(buf []byte) (interface{}, []byte, error) {
-	// scan each character, being mindful of escape sequence. once find unescaped quote, we're done
->>>>>>> Avro bytes text working; Avro string text still needs Unicode help for emojis
 	buflen := len(buf)
 	if buflen < 2 {
 		return nil, buf, io.ErrShortBuffer
@@ -230,7 +130,6 @@ func stringTextDecoder(buf []byte) (interface{}, []byte, error) {
 	if buf[0] != '"' {
 		return nil, buf, fmt.Errorf("expected initial \"; found: %c", buf[0])
 	}
-<<<<<<< HEAD
 	var newBytes []byte
 	var escaped bool
 	// Loop through bytes following initial double quote, but note we will
@@ -248,48 +147,6 @@ func stringTextDecoder(buf []byte) (interface{}, []byte, error) {
 				// 1 because do not want to count the trailing quote and
 				// subtract another 1 because already consumed u but have yet to
 				// increment i.
-=======
-
-	var newBytes []byte
-	var escaped bool
-
-	// Loop through all remaining bytes, but note we will terminate early when
-	// find unescaped double quote.
-	for i := 1; i < buflen; i++ {
-		b := buf[i]
-		if escaped {
-<<<<<<< HEAD
-			switch b {
-			case '"':
-				newBytes = append(newBytes, '"')
-			case '\\':
-				newBytes = append(newBytes, '\\')
-			case '/':
-				newBytes = append(newBytes, '/')
-			case 'b':
-				newBytes = append(newBytes, '\b')
-			case 'f':
-				newBytes = append(newBytes, '\f')
-			case 'n':
-				newBytes = append(newBytes, '\n')
-			case 'r':
-				newBytes = append(newBytes, '\r')
-			case 't':
-				newBytes = append(newBytes, '\t')
-			case 'u':
->>>>>>> Avro bytes text working; Avro string text still needs Unicode help for emojis
-=======
-			escaped = false
-			if b2, ok := unescapeSpecialJSON(b); ok {
-				newBytes = append(newBytes, b2)
-				continue
-			}
-			if b == 'u' {
-				// NOTE: Need at least 4 more bytes to read uint16, but subtract
-				// 1 because do not want to count the trailing quote and
-				// subtract another 1 because already consumed u but have yet to
-				// increment i.
->>>>>>> bytes and string text encode and decode pass tests
 				if i > buflen-6 {
 					return nil, buf, io.ErrShortBuffer
 				}
@@ -297,8 +154,6 @@ func stringTextDecoder(buf []byte) (interface{}, []byte, error) {
 				if err != nil {
 					return nil, buf, err
 				}
-<<<<<<< HEAD
-<<<<<<< HEAD
 				i += 4 // absorb 4 characters: one 'u' and three of the digits
 
 				nbl := len(newBytes)
@@ -326,42 +181,6 @@ func stringTextDecoder(buf []byte) (interface{}, []byte, error) {
 				width := utf8.EncodeRune(newBytes[nbl:], r) // append UTF-8 encoded version of code point
 				newBytes = newBytes[:nbl+width]             // trim off excess bytes
 				continue
-=======
-				width := utf8.EncodeRune(tmp[:], rune(v))
-				newBytes = append(newBytes, tmp[:width]...)
-				i += 4 // absorb 4 hexidecimal characters
-			default:
-				newBytes = append(newBytes, b)
->>>>>>> Avro bytes text working; Avro string text still needs Unicode help for emojis
-=======
-				i += 4 // absorb 4 characters: one 'u' and three of the digits
-
-				nbl := len(newBytes)
-				newBytes = append(newBytes, []byte{0, 0, 0, 0}...) // grow to make room for UTF-8 encoded rune
-
-				r := rune(v)
-				if utf16.IsSurrogate(r) {
-					i++ // absorb final hexidecimal digit from previous value
-
-					// Expect second half of surrogate pair
-					if i > buflen-6 || buf[i] != '\\' || buf[i+1] != 'u' {
-						return nil, buf, errors.New("missing second half of surrogate pair")
-					}
-
-					v, err = parseUint64FromHexSlice(buf[i+2 : i+6])
-					if err != nil {
-						return nil, buf, err
-					}
-					i += 5 // absorb 5 characters: two for '\u', and 3 of the 4 digits
-
-					// Get code point by combining high and low surrogate bits
-					r = utf16.DecodeRune(r, rune(v))
-				}
-
-				width := utf8.EncodeRune(newBytes[nbl:], r) // append UTF-8 encoded version of code point
-				newBytes = newBytes[:nbl+width]             // trim off excess bytes
-				continue
->>>>>>> bytes and string text encode and decode pass tests
 			}
 			newBytes = append(newBytes, b)
 			continue
@@ -371,8 +190,6 @@ func stringTextDecoder(buf []byte) (interface{}, []byte, error) {
 			continue
 		}
 		if b == '"' {
-<<<<<<< HEAD
-<<<<<<< HEAD
 			return string(newBytes), buf[i+1:], nil
 		}
 		newBytes = append(newBytes, b)
@@ -430,72 +247,6 @@ func unescapeSpecialJSON(b byte) (byte, bool) {
 		return '\t', true
 	}
 	return b, false
-=======
-			break
-=======
-			return string(newBytes), buf[i+1:], nil
->>>>>>> code refactor
-		}
-		newBytes = append(newBytes, b)
-	}
-	return nil, buf, fmt.Errorf("expected final \"; found: %c", buf[buflen-1])
-}
-
-func parseUint64FromHexSlice(buf []byte) (uint64, error) {
-	var value uint64
-	for _, b := range buf {
-		diff := uint64(b - '0')
-		if diff < 0 {
-			return 0, hex.InvalidByteError(b)
-		}
-		if diff < 10 {
-			value = (value << 4) | diff
-			continue
-		}
-		b10 := b + 10
-		diff = uint64(b10 - 'A')
-		if diff < 10 {
-			return 0, hex.InvalidByteError(b)
-		}
-		if diff < 16 {
-			value = (value << 4) | diff
-			continue
-		}
-		diff = uint64(b10 - 'a')
-		if diff < 10 {
-			return 0, hex.InvalidByteError(b)
-		}
-		if diff < 16 {
-			value = (value << 4) | diff
-			continue
-		}
-		return 0, hex.InvalidByteError(b)
-	}
-<<<<<<< HEAD
-	return string(newBytes), buf[i+1:], nil
->>>>>>> Avro bytes text working; Avro string text still needs Unicode help for emojis
-=======
-	return value, nil
-}
-
-func unescapeSpecialJSON(b byte) (byte, bool) {
-	// NOTE: The following 8 special JSON characters must be escaped:
-	switch b {
-	case '"', '\\', '/':
-		return b, true
-	case 'b':
-		return '\b', true
-	case 'f':
-		return '\f', true
-	case 'n':
-		return '\n', true
-	case 'r':
-		return '\r', true
-	case 't':
-		return '\t', true
-	}
-	return b, false
->>>>>>> code refactor
 }
 
 ////////////////////////////////////////
@@ -505,61 +256,10 @@ func unescapeSpecialJSON(b byte) (byte, bool) {
 func bytesTextEncoder(buf []byte, datum interface{}) ([]byte, error) {
 	someBytes, ok := datum.([]byte)
 	if !ok {
-<<<<<<< HEAD
 		return buf, fmt.Errorf("bytes: expected: []byte; received: %T", datum)
 	}
 	buf = append(buf, '"') // prefix buffer with double quote
 	for _, b := range someBytes {
-		if escaped, ok := escapeSpecialJSON(b); ok {
-			buf = append(buf, escaped...)
-			continue
-		}
-		if r := rune(b); r < utf8.RuneSelf && unicode.IsPrint(r) {
-			buf = append(buf, b)
-			continue
-=======
-		// panic("string rather than []byte")
-		return buf, fmt.Errorf("bytes: expected: []byte; received: %T", datum)
-	}
-	buf = append(buf, '"') // prefix buffer with double quote
-	for _, b := range someBytes {
-<<<<<<< HEAD
-		buf = appendMaybeEscapedByte(buf, b)
-	}
-	return append(buf, '"'), nil
-}
-
-func appendMaybeEscapedByte(buf []byte, b byte) []byte {
-	if b < utf8.RuneSelf {
-		// NOTE: The following 6 special JSON characters must be escaped:
-		switch b {
-		case '"', '\\', '/':
-			return append(buf, []byte{'\\', b}...)
-		case '\b':
-			return append(buf, []byte("\\b")...)
-		case '\f':
-			return append(buf, []byte("\\f")...)
-		case '\n':
-			return append(buf, []byte("\\n")...)
-		case '\r':
-			return append(buf, []byte("\\r")...)
-		case '\t':
-			return append(buf, []byte("\\t")...)
-		default:
-			return append(buf, b) // typical characters
->>>>>>> Avro bytes text working; Avro string text still needs Unicode help for emojis
-		}
-		// This Code Point _could_ be encoded as a single byte, however, it's
-		// above standard ASCII range (b > 127), therefore must encode using its
-		// four-byte hexidecimal equivalent, which will always start with the high byte 00
-		buf = appendUnicodeHex(buf, uint16(b))
-	}
-<<<<<<< HEAD
-	return append(buf, '"'), nil // postfix buffer with double quote
-=======
-	return append(append(append(buf, []byte("\\u00")...), hexDigits[b>>4]), hexDigits[b&0x0f])
->>>>>>> Avro bytes text working; Avro string text still needs Unicode help for emojis
-=======
 		if escaped, ok := escapeSpecialJSON(b); ok {
 			buf = append(buf, escaped...)
 			continue
@@ -574,39 +274,11 @@ func appendMaybeEscapedByte(buf []byte, b byte) []byte {
 		buf = appendUnicodeHex(buf, uint16(b))
 	}
 	return append(buf, '"'), nil // postfix buffer with double quote
->>>>>>> bytes and string text encode and decode pass tests
 }
 
 func stringTextEncoder(buf []byte, datum interface{}) ([]byte, error) {
 	someString, ok := datum.(string)
 	if !ok {
-<<<<<<< HEAD
-		return buf, fmt.Errorf("bytes: expected: string; received: %T", datum)
-	}
-	buf = append(buf, '"') // prefix buffer with double quote
-	for _, r := range someString {
-		if escaped, ok := escapeSpecialJSON(byte(r)); ok {
-			buf = append(buf, escaped...)
-			continue
-		}
-		if r < utf8.RuneSelf && unicode.IsPrint(r) {
-			buf = append(buf, byte(r))
-			continue
-		}
-		// NOTE: Attempt to encode code point as UTF-16 surrogate pair
-		r1, r2 := utf16.EncodeRune(r)
-		if r1 != unicode.ReplacementChar || r2 != unicode.ReplacementChar {
-			// code point does require surrogate pair, and thus two uint16 values
-			buf = appendUnicodeHex(buf, uint16(r1))
-			buf = appendUnicodeHex(buf, uint16(r2))
-			continue
-		}
-		// Code Point does not require surrogate pair.
-		buf = appendUnicodeHex(buf, uint16(r))
-	}
-	return append(buf, '"'), nil // postfix buffer with double quote
-=======
-		// panic("[]byte rather than string")
 		return buf, fmt.Errorf("bytes: expected: string; received: %T", datum)
 	}
 	buf = append(buf, '"') // prefix buffer with double quote
@@ -642,98 +314,6 @@ func appendUnicodeHex(buf []byte, v uint16) []byte {
 	buf = append(buf, hexDigits[(v&0xF0)>>4])
 	buf = append(buf, hexDigits[(v&0xF)])
 	return buf
-}
-
-func escapeSpecialJSON(b byte) ([]byte, bool) {
-	// NOTE: The following 8 special JSON characters must be escaped:
-	switch b {
-	case '"':
-		return sliceQuote, true
-	case '\\':
-		return sliceBackslash, true
-	case '/':
-		return sliceSlash, true
-	case '\b':
-		return sliceBackspace, true
-	case '\f':
-		return sliceFormfeed, true
-	case '\n':
-		return sliceNewline, true
-	case '\r':
-		return sliceCarriageReturn, true
-	case '\t':
-		return sliceTab, true
-	}
-	return nil, false
-}
-<<<<<<< HEAD
-
-func unescapeSpecialJSON(b byte) (byte, bool) {
-	// NOTE: The following 8 special JSON characters must be escaped:
-	switch b {
-	case '"', '\\', '/':
-		return b, true
-	case 'b':
-		return '\b', true
-	case 'f':
-		return '\f', true
-	case 'n':
-		return '\n', true
-	case 'r':
-		return '\r', true
-	case 't':
-		return '\t', true
-	}
-	return b, false
-}
-
-func parseUint64FromHexSlice(buf []byte) (uint64, error) {
-	var value uint64
-	for _, b := range buf {
-		diff := uint64(b - '0')
-		if diff < 0 {
-			return 0, hex.InvalidByteError(b)
-		}
-		if diff < 10 {
-			value = (value << 4) | diff
-			continue
-		}
-		b10 := b + 10
-		diff = uint64(b10 - 'A')
-		if diff < 10 {
-			return 0, hex.InvalidByteError(b)
-		}
-		if diff < 16 {
-			value = (value << 4) | diff
-			continue
-		}
-		diff = uint64(b10 - 'a')
-		if diff < 10 {
-			return 0, hex.InvalidByteError(b)
-		}
-		if diff < 16 {
-			value = (value << 4) | diff
-			continue
-		}
-		return 0, hex.InvalidByteError(b)
-	}
-<<<<<<< HEAD
-	return strconv.AppendInt(append(append(buf, []byte("\\u")...)), int64(r), 16)
->>>>>>> Avro bytes text working; Avro string text still needs Unicode help for emojis
-}
-
-func appendUnicodeHex(buf []byte, v uint16) []byte {
-	// Start with '\u' prefix:
-	buf = append(buf, sliceUnicode...)
-	// And tack on 4 hexidecimal digits:
-	buf = append(buf, hexDigits[(v&0xF000)>>12])
-	buf = append(buf, hexDigits[(v&0xF00)>>8])
-	buf = append(buf, hexDigits[(v&0xF0)>>4])
-	buf = append(buf, hexDigits[(v&0xF)])
-	return buf
-=======
-	return value, nil
->>>>>>> bytes and string text encode and decode pass tests
 }
 
 const hexDigits = "0123456789ABCDEF"
@@ -775,5 +355,3 @@ var (
 	sliceTab            = []byte("\\t")
 	sliceUnicode        = []byte("\\u")
 )
-=======
->>>>>>> code refactor

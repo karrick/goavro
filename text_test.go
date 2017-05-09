@@ -66,15 +66,10 @@ func testTextDecodePass(t *testing.T, schema string, datum interface{}, encoded 
 		t.Errorf("schema: %s; Datum: %#v; Actual: %v; Expected: %v", schema, datum, actual, expected)
 	}
 
-<<<<<<< HEAD
 	var datumIsMap, datumIsNumerical, datumIsSlice, datumIsString bool
 	var datumFloat float64
 	var datumMap map[string]interface{}
 	var datumSlice []interface{}
-=======
-	var datumIsNumerical, datumIsString bool
-	var datumFloat float64
->>>>>>> Avro bytes text working; Avro string text still needs Unicode help for emojis
 	var datumString string
 	switch v := datum.(type) {
 	case float64:
@@ -95,7 +90,6 @@ func testTextDecodePass(t *testing.T, schema string, datum interface{}, encoded 
 	case string:
 		datumString = v
 		datumIsString = true
-<<<<<<< HEAD
 	case []interface{}:
 		datumIsSlice = true
 		datumSlice = v
@@ -108,12 +102,6 @@ func testTextDecodePass(t *testing.T, schema string, datum interface{}, encoded 
 	var decodedMap map[string]interface{}
 	var decodedFloat float64
 	var decodedSlice []interface{}
-=======
-	}
-
-	var decodedIsNumerical, decodedIsString bool
-	var decodedFloat float64
->>>>>>> Avro bytes text working; Avro string text still needs Unicode help for emojis
 	var decodedString string
 	switch v := decoded.(type) {
 	case float64:
@@ -134,15 +122,12 @@ func testTextDecodePass(t *testing.T, schema string, datum interface{}, encoded 
 	case string:
 		decodedString = v
 		decodedIsString = true
-<<<<<<< HEAD
 	case []interface{}:
 		decodedIsSlice = true
 		decodedSlice = v
 	case map[string]interface{}:
 		decodedIsMap = true
 		decodedMap = v
-=======
->>>>>>> Avro bytes text working; Avro string text still needs Unicode help for emojis
 	}
 
 	// NOTE: Special handling when both datum and decoded values are floating
@@ -152,7 +137,6 @@ func testTextDecodePass(t *testing.T, schema string, datum interface{}, encoded 
 			(math.IsInf(datumFloat, 1) != math.IsInf(decodedFloat, 1)) &&
 			(math.IsInf(datumFloat, -1) != math.IsInf(decodedFloat, -1)) &&
 			datumFloat != decodedFloat {
-<<<<<<< HEAD
 			t.Errorf("numerical comparison: schema: %s; Datum: %v; Actual: %v; Expected: %v", schema, datum, decodedFloat, datumFloat)
 		}
 	} else if datumIsMap && decodedIsMap {
@@ -181,13 +165,6 @@ func testTextDecodePass(t *testing.T, schema string, datum interface{}, encoded 
 	} else if datumIsString && decodedIsString {
 		if actual, expected := decodedString, datumString; actual != expected {
 			t.Errorf("string comparison: Actual: %v; Expected: %v", actual, expected)
-=======
-			t.Errorf("schema: %s; Datum: %v; Actual: %f; Expected: %f", schema, datum, decodedFloat, datumFloat)
-		}
-	} else if datumIsString && decodedIsString {
-		if actual, expected := decodedString, datumString; actual != expected {
-			t.Errorf("schema: %s; Datum: %v; Actual: %s; Expected: %s", schema, datum, actual, expected)
->>>>>>> Avro bytes text working; Avro string text still needs Unicode help for emojis
 		}
 	} else if actual, expected := fmt.Sprintf("%v", decoded), fmt.Sprintf("%v", datum); actual != expected {
 		t.Errorf("schema: %s; Datum: %v; Actual: %s; Expected: %s", schema, datum, actual, expected)
