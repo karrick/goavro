@@ -22,6 +22,7 @@ type OCFReader struct {
 	datum  interface{}
 	err    error
 
+	readReady      bool
 	compression    Compression
 	remainingItems int64 // initialized to block count for each block, and decremented to 0 by end of block
 	block          []byte
@@ -32,6 +33,21 @@ const readBlockSize = 4096 // read and process data by blocks
 
 // NewOCFReader initializes and returns a new structure used to read an Avro Object Container File
 // (OCF).
+//
+//    func example(ior io.Reader) error {
+//    	ocfr, err := goavro.NewOCFReader(ior)
+//    	if err != nil {
+//    		return err
+//    	}
+//    	for ocfr.Scan() {
+//    		datum, err := ocfr.Read()
+//    		if err != nil {
+//    			return err
+//    		}
+//    		fmt.Println(datum)
+//    	}
+//    	return ocfr.Err()
+//    }
 func NewOCFReader(ior io.Reader) (*OCFReader, error) {
 	// NOTE: Wrap provided io.Reader in a buffered reader, which provides
 	// io.ByteReader interface, along with improving the performance of
@@ -42,10 +58,10 @@ func NewOCFReader(ior io.Reader) (*OCFReader, error) {
 	magic := make([]byte, 4)
 	_, err := io.ReadFull(br, magic)
 	if err != nil {
-		return nil, fmt.Errorf("cannot read file magic bytes: %s", err)
+		return nil, fmt.Errorf("cannot read magic bytes: %s", err)
 	}
-	if bytes.Compare(magic, []byte(magicBytes)) != 0 {
-		return nil, fmt.Errorf("invalid file magic number: %v != %v", string(magic), magicBytes)
+	if bytes.Compare(magic, magicBytes) != 0 {
+		return nil, fmt.Errorf("cannot decode OCF with invalid magic bytes: %#q", magic)
 	}
 
 	// decode header metadata
@@ -98,15 +114,19 @@ func (ocfr *OCFReader) Err() error {
 }
 
 // Scan returns true when there is at least one more data item to be read from
-// the Avro OCF.
+// the Avro OCF. Scan ought to be called prior to calling the Read method each
+// time the Read method is invoked. See the documentation for
+// goavro.NewOCFReader for an example of how to use Scan.
 func (ocfr *OCFReader) Scan() bool {
+	ocfr.readReady = false
+
 	if ocfr.err != nil {
 		return false
 	}
 
 	// NOTE: If there are no more remaining data items from the existing block,
 	// then attempt to slurp in the next block.
-	if ocfr.remainingItems == 0 {
+	if ocfr.remainingItems <= 0 {
 		if len(ocfr.block) > 0 {
 			ocfr.err = fmt.Errorf("extra bytes between final datum in previous block and block sync marker: %d", len(ocfr.block))
 			return false
@@ -122,11 +142,12 @@ func (ocfr *OCFReader) Scan() bool {
 			}
 			return false
 		}
-
-		// If no more data items then signal end by returning false
-		if ocfr.remainingItems == 0 {
-			panic("OCF has trailing 0 block count")
-			// return false
+		if ocfr.remainingItems <= 0 {
+			ocfr.err = fmt.Errorf("cannot decode when block count is not greater than 0: %d", ocfr.remainingItems)
+			return false
+		}
+		if ocfr.remainingItems > MaxBlockCount {
+			ocfr.err = fmt.Errorf("cannot decode when block count exceeds MaxBlockCount: %d > %d", ocfr.remainingItems, MaxBlockCount)
 		}
 
 		var blockSize int64
@@ -135,8 +156,12 @@ func (ocfr *OCFReader) Scan() bool {
 			ocfr.err = fmt.Errorf("cannot read block size: %d; %s", blockSize, ocfr.err)
 			return false
 		}
-		if blockSize < 0 {
-			ocfr.err = fmt.Errorf("cannot decode block with negative size: %d", blockSize)
+		if blockSize <= 0 {
+			ocfr.err = fmt.Errorf("cannot decode when block size is not greater than 0: %d", ocfr.remainingItems)
+			return false
+		}
+		if blockSize > MaxBlockSize {
+			ocfr.err = fmt.Errorf("cannot decode when block size exceeds MaxBlockSize: %d > %d", blockSize, MaxBlockSize)
 			return false
 		}
 
@@ -199,14 +224,24 @@ func (ocfr *OCFReader) Scan() bool {
 		}
 	}
 
+	ocfr.readReady = true
 	return true
 }
 
-// Read consumes one data item from the Avro OCF stream and returns it.
+// Read consumes one data item from the Avro OCF stream and returns it. Read is
+// designed to be called only once after each invocation of the Scan method.
+// See the documentation for goavro.NewOCFReader for an example of how to use
+// Read.
 func (ocfr *OCFReader) Read() (interface{}, error) {
+	// NOTE: Test previous error before testing readReady to prevent overwriting previous error.
 	if ocfr.err != nil {
 		return nil, ocfr.err
 	}
+	if !ocfr.readReady {
+		ocfr.err = errors.New("Read called without successful Scan")
+		return nil, ocfr.err
+	}
+	ocfr.readReady = false
 
 	// decode one data item from block
 	ocfr.datum, ocfr.block, ocfr.err = ocfr.bd.BinaryDecode(ocfr.block)
@@ -224,8 +259,8 @@ func (ocfr *OCFReader) Schema() string {
 }
 
 // longReader reads bytes from bufio.Reader until has complete long value, or
-// read error. It _could_ accept io.Reader interface, but receiving the exact
-// needed structure is faster.
+// read error. It _could_ accept io.ByteReader interface, but receiving the
+// exact needed structure is faster.
 func longReader(br *bufio.Reader) (int64, error) {
 	var value uint64
 	var shift uint
@@ -247,48 +282,68 @@ func longReader(br *bufio.Reader) (int64, error) {
 // read error. It _could_ accept io.Reader interface, but receiving the exact
 // needed structure is faster.
 func metadataReader(br *bufio.Reader) (map[string][]byte, error) {
-	blockCount, err := longReader(br)
-	if err != nil {
-		return nil, fmt.Errorf("cannot read Map block count: %s", err)
+	var err error
+	var value interface{}
+
+	// block count and block size
+	if value, err = longReader(br); err != nil {
+		return nil, fmt.Errorf("cannot decode Map block count: %s", err)
+	}
+	blockCount := value.(int64)
+	if blockCount < 0 {
+		// NOTE: A negative block count implies there is a long encoded
+		// block size following the negative block count. We have no use
+		// for the block size in this decoder, so we read and discard
+		// the value.
+		blockCount = -blockCount // convert to its positive equivalent
+		if _, err = longReader(br); err != nil {
+			return nil, fmt.Errorf("cannot decode Map block size: %s", err)
+		}
+	}
+	// Ensure block count does not exceed some sane value.
+	if blockCount > MaxBlockCount {
+		return nil, fmt.Errorf("cannot decode Map when block count exceeds MaxBlockCount: %d > %d", blockCount, MaxBlockCount)
 	}
 	// NOTE: While the attempt of a RAM optimization shown below is not
-	// necessary, many encoders will encode all array items in a single block.
-	// We can optimize amount of RAM allocated by runtime for the array by
-	// initializing the array for that number of items.
-	initialSize := blockCount
-	if initialSize < 0 {
-		initialSize = -initialSize
-	}
-	mapValues := make(map[string][]byte, initialSize)
+	// necessary, many encoders will encode all items in a single block.
+	// We can optimize amount of RAM allocated by runtime for the array
+	// by initializing the array for that number of items.
+	mapValues := make(map[string][]byte, blockCount)
 
 	for blockCount != 0 {
-		if blockCount < 0 {
-			// NOTE: Negative block count means following long is the block
-			// size, for which we have no use.
-			blockCount = -blockCount // convert to its positive equivalent
-			if _, err = longReader(br); err != nil {
-				return nil, fmt.Errorf("cannot read Map block size: %s", err)
-			}
-		}
 		// Decode `blockCount` datum values from buffer
 		for i := int64(0); i < blockCount; i++ {
-			// first read the key string
+			// first decode the key string
 			keyBytes, err := bytesReader(br)
 			if err != nil {
-				return nil, fmt.Errorf("cannot read Map key: %s", err)
+				return nil, fmt.Errorf("cannot decode Map key: %s", err)
 			}
 			key := string(keyBytes)
 			// metadata values are always bytes
 			buf, err := bytesReader(br)
 			if err != nil {
-				return nil, fmt.Errorf("cannot read Map value for key %q: %s", key, err)
+				return nil, fmt.Errorf("cannot decode Map value for key %q: %s", key, err)
 			}
 			mapValues[key] = buf
 		}
 		// Decode next blockCount from buffer, because there may be more blocks
-		blockCount, err = longReader(br)
-		if err != nil {
-			return nil, fmt.Errorf("cannot read Map block count: %s", err)
+		if value, err = longReader(br); err != nil {
+			return nil, fmt.Errorf("cannot decode Map block count: %s", err)
+		}
+		blockCount = value.(int64)
+		if blockCount < 0 {
+			// NOTE: A negative block count implies there is a long
+			// encoded block size following the negative block count. We
+			// have no use for the block size in this decoder, so we
+			// read and discard the value.
+			blockCount = -blockCount // convert to its positive equivalent
+			if _, err = longReader(br); err != nil {
+				return nil, fmt.Errorf("cannot decode Map block size: %s", err)
+			}
+		}
+		// Ensure block count does not exceed some sane value.
+		if blockCount > MaxBlockCount {
+			return nil, fmt.Errorf("cannot decode Map when block count exceeds MaxBlockCount: %d > %d", blockCount, MaxBlockCount)
 		}
 	}
 	return mapValues, nil
@@ -301,15 +356,18 @@ func metadataReader(br *bufio.Reader) (map[string][]byte, error) {
 func bytesReader(br *bufio.Reader) ([]byte, error) {
 	size, err := longReader(br)
 	if err != nil {
-		return nil, fmt.Errorf("cannot read bytes size: %s", err)
+		return nil, fmt.Errorf("cannot read bytes length: %s", err)
 	}
 	if size < 0 {
-		return nil, fmt.Errorf("bytes: negative length: %d", size)
+		return nil, fmt.Errorf("cannot read bytes: length is negative: %d", size)
+	}
+	if size > MaxBlockSize {
+		return nil, fmt.Errorf("cannot read bytes: length exceeds MaxBlockSize: %d > %d", size, MaxBlockSize)
 	}
 	buf := make([]byte, size)
 	_, err = io.ReadAtLeast(br, buf, int(size))
 	if err != nil {
-		return nil, fmt.Errorf("bytes: cannot read: %s", err)
+		return nil, fmt.Errorf("cannot read bytes: %s", err)
 	}
 	return buf, nil
 }

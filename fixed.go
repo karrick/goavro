@@ -24,8 +24,8 @@ func makeFixedCodec(st map[string]*Codec, enclosingNamespace string, schemaMap m
 	size := int(s2)
 
 	c.binaryDecoder = func(buf []byte) (interface{}, []byte, error) {
-		if len(buf) < size {
-			return nil, buf, fmt.Errorf("Fixed %q short buffer: size exceeds remaining buffer length: %d > %d", c.typeName, size, len(buf))
+		if buflen := len(buf); size > buflen {
+			return nil, buf, fmt.Errorf("Fixed %q short buffer: size exceeds remaining buffer length: %d > %d", c.typeName, size, buflen)
 		}
 		return buf[:size], buf[size:], nil
 	}

@@ -22,30 +22,32 @@ func makeMapCodec(st map[string]*Codec, namespace string, schemaMap map[string]i
 			var err error
 			var value interface{}
 
+			// block count and block size
 			if value, buf, err = longDecoder(buf); err != nil {
 				return nil, buf, fmt.Errorf("cannot decode Map block count: %s", err)
 			}
 			blockCount := value.(int64)
-
-			// NOTE: While the attempt of a RAM optimization shown below is not
-			// necessary, many encoders will encode all array items in a single
-			// block.  We can optimize amount of RAM allocated by runtime for
-			// the array by initializing the array for that number of items.
-			initialSize := blockCount
-			if initialSize < 0 {
-				initialSize = -initialSize
+			if blockCount < 0 {
+				// NOTE: A negative block count implies there is a long encoded
+				// block size following the negative block count. We have no use
+				// for the block size in this decoder, so we read and discard
+				// the value.
+				blockCount = -blockCount // convert to its positive equivalent
+				if _, buf, err = longDecoder(buf); err != nil {
+					return nil, buf, fmt.Errorf("cannot decode Map block size: %s", err)
+				}
 			}
-			mapValues := make(map[string]interface{}, initialSize)
+			// Ensure block count does not exceed some sane value.
+			if blockCount > MaxBlockCount {
+				return nil, buf, fmt.Errorf("cannot decode Map when block count exceeds MaxBlockCount: %d > %d", blockCount, MaxBlockCount)
+			}
+			// NOTE: While the attempt of a RAM optimization shown below is not
+			// necessary, many encoders will encode all items in a single block.
+			// We can optimize amount of RAM allocated by runtime for the array
+			// by initializing the array for that number of items.
+			mapValues := make(map[string]interface{}, blockCount)
 
 			for blockCount != 0 {
-				if blockCount < 0 {
-					// NOTE: Negative block count means following long is the block size, for which
-					// we have no use.
-					blockCount = -blockCount // convert to its positive equivalent
-					if _, buf, err = longDecoder(buf); err != nil {
-						return nil, buf, fmt.Errorf("cannot decode Map block size: %s", err)
-					}
-				}
 				// Decode `blockCount` datum values from buffer
 				for i := int64(0); i < blockCount; i++ {
 					// first decode the key string
@@ -64,6 +66,20 @@ func makeMapCodec(st map[string]*Codec, namespace string, schemaMap map[string]i
 					return nil, buf, fmt.Errorf("cannot decode Map block count: %s", err)
 				}
 				blockCount = value.(int64)
+				if blockCount < 0 {
+					// NOTE: A negative block count implies there is a long
+					// encoded block size following the negative block count. We
+					// have no use for the block size in this decoder, so we
+					// read and discard the value.
+					blockCount = -blockCount // convert to its positive equivalent
+					if _, buf, err = longDecoder(buf); err != nil {
+						return nil, buf, fmt.Errorf("cannot decode Map block size: %s", err)
+					}
+				}
+				// Ensure block count does not exceed some sane value.
+				if blockCount > MaxBlockCount {
+					return nil, buf, fmt.Errorf("cannot decode Map when block count exceeds MaxBlockCount: %d > %d", blockCount, MaxBlockCount)
+				}
 			}
 			return mapValues, buf, nil
 		},

@@ -1,16 +1,51 @@
 package goavro_test
 
-import "testing"
+import (
+	"testing"
+)
 
-func TestSchemaArray(t *testing.T) {
+func TestArraySchema(t *testing.T) {
 	testSchemaValid(t, `{"type":"array","items":"bytes"}`)
-}
-
-func TestArrayItems(t *testing.T) {
 	testSchemaInvalid(t, `{"type":"array","item":"int"}`, "Array ought to have items key")
 	testSchemaInvalid(t, `{"type":"array","items":"integer"}`, "Array items ought to be valid Avro type")
 	testSchemaInvalid(t, `{"type":"array","items":3}`, "Array items ought to be valid Avro type")
 	testSchemaInvalid(t, `{"type":"array","items":int}`, "invalid character") // type name must be quoted
+}
+
+func TestArrayDecodeInitialBlockCountCannotDecode(t *testing.T) {
+	testBinaryDecodeFail(t, `{"type":"array","items":"int"}`, nil, "block count")
+}
+
+func TestArrayDecodeInitialBlockCountZero(t *testing.T) {
+	testBinaryDecodePass(t, `{"type":"array","items":"int"}`, []interface{}{}, []byte{0})
+}
+
+func TestArrayDecodeInitialBlockCountNegative(t *testing.T) {
+	testBinaryDecodePass(t, `{"type":"array","items":"int"}`, []interface{}{3}, []byte{1, 2, 6, 0})
+}
+
+func TestArrayDecodeInitialBlockCountTooLarge(t *testing.T) {
+	testBinaryDecodeFail(t, `{"type":"array","items":"int"}`, morePositiveThanMaxBlockCount, "block count")
+}
+
+func TestArrayDecodeInitialBlockCountNegativeTooLarge(t *testing.T) {
+	testBinaryDecodeFail(t, `{"type":"array","items":"int"}`, append(moreNegativeThanMaxBlockCount, byte(0)), "block count")
+}
+
+func TestArrayDecodeNextBlockCountCannotDecode(t *testing.T) {
+	testBinaryDecodeFail(t, `{"type":"array","items":"int"}`, []byte{2, 6}, "block count")
+}
+
+func TestArrayDecodeNextBlockCountNegative(t *testing.T) {
+	testBinaryDecodePass(t, `{"type":"array","items":"int"}`, []interface{}{3, 3}, []byte{2, 6, 1, 2, 6, 0})
+}
+
+func TestArrayDecodeNextBlockCountTooLarge(t *testing.T) {
+	testBinaryDecodeFail(t, `{"type":"array","items":"int"}`, append([]byte{2, 6}, morePositiveThanMaxBlockCount...), "block count")
+}
+
+func TestArrayDecodeNextBlockCountNegativeTooLarge(t *testing.T) {
+	testBinaryDecodeFail(t, `{"type":"array","items":"int"}`, append([]byte{2, 6}, append(moreNegativeThanMaxBlockCount, []byte{2, 6, 0}...)...), "block count")
 }
 
 func TestArrayNull(t *testing.T) {

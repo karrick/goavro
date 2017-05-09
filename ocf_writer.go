@@ -71,7 +71,7 @@ func NewOCFWriter(config OCFWriterConfig) (*OCFWriter, error) {
 	// Create buffer for OCF header.  First 4 bytes are magic, and we'll use copy to fill them in,
 	// so initialize buffer's length with 4, and its capacity equal to length of avro schema plus a constant.
 	buf := make([]byte, 4, len(avroSchema)+48) // OCF header is usually about 48 bytes longer than its compressed schema
-	_ = copy(buf, []byte(magicBytes))
+	_ = copy(buf, magicBytes)
 
 	// file metadata, including the schema
 	hm := map[string]interface{}{"avro.schema": avroSchema, "avro.codec": avroCodec}
@@ -102,6 +102,7 @@ func (ocf *OCFWriter) Append(data []interface{}) error {
 	var block []byte // working buffer for encoding data values
 	var err error
 
+	// TODO: Encode a maximum of MaxBlockCount data items in each block.
 	for _, datum := range data {
 		block, err = ocf.codec.BinaryEncode(block, datum)
 		if err != nil {

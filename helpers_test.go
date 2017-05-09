@@ -9,6 +9,25 @@ import (
 	"github.com/karrick/goavro"
 )
 
+var morePositiveThanMaxBlockCount, moreNegativeThanMaxBlockCount []byte
+
+func init() {
+	c, err := goavro.NewCodec("long")
+	if err != nil {
+		panic(err)
+	}
+
+	morePositiveThanMaxBlockCount, err = c.BinaryEncode(nil, (goavro.MaxBlockCount + 1))
+	if err != nil {
+		panic(err)
+	}
+
+	moreNegativeThanMaxBlockCount, err = c.BinaryEncode(nil, -(goavro.MaxBlockCount + 1))
+	if err != nil {
+		panic(err)
+	}
+}
+
 func testSchemaInvalid(t *testing.T, schema, errorMessage string) {
 	_, err := goavro.NewCodec(schema)
 	if err == nil || !strings.Contains(err.Error(), errorMessage) {

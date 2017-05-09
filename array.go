@@ -22,30 +22,32 @@ func makeArrayCodec(st map[string]*Codec, enclosingNamespace string, schemaMap m
 			var value interface{}
 			var err error
 
+			// block count and block size
 			if value, buf, err = longDecoder(buf); err != nil {
 				return nil, buf, fmt.Errorf("cannot decode Array block count: %s", err)
 			}
 			blockCount := value.(int64)
-
-			// NOTE: While the attempt of a RAM optimization shown below is not
-			// necessary, many encoders will encode all array items in a single
-			// block.  We can optimize amount of RAM allocated by runtime for
-			// the array by initializing the array for that number of items.
-			initialSize := blockCount
-			if initialSize < 0 {
-				initialSize = -initialSize
+			if blockCount < 0 {
+				// NOTE: A negative block count implies there is a long encoded
+				// block size following the negative block count. We have no use
+				// for the block size in this decoder, so we read and discard
+				// the value.
+				blockCount = -blockCount // convert to its positive equivalent
+				if _, buf, err = longDecoder(buf); err != nil {
+					return nil, buf, fmt.Errorf("cannot decode Array block size: %s", err)
+				}
 			}
-			arrayValues := make([]interface{}, 0, initialSize)
+			// Ensure block count does not exceed some sane value.
+			if blockCount > MaxBlockCount {
+				return nil, buf, fmt.Errorf("cannot decode Array when block count exceeds MaxBlockCount: %d > %d", blockCount, MaxBlockCount)
+			}
+			// NOTE: While the attempt of a RAM optimization shown below is not
+			// necessary, many encoders will encode all items in a single block.
+			// We can optimize amount of RAM allocated by runtime for the array
+			// by initializing the array for that number of items.
+			arrayValues := make([]interface{}, 0, blockCount)
 
 			for blockCount != 0 {
-				if blockCount < 0 {
-					// NOTE: Negative block count means following long is the block size, for which
-					// we have no use.  Read its value and discard.
-					blockCount = -blockCount // convert to its positive equivalent
-					if _, buf, err = longDecoder(buf); err != nil {
-						return nil, buf, fmt.Errorf("cannot decode Array block size: %s", err)
-					}
-				}
 				// Decode `blockCount` datum values from buffer
 				for i := int64(0); i < blockCount; i++ {
 					if value, buf, err = itemCodec.binaryDecoder(buf); err != nil {
@@ -58,6 +60,20 @@ func makeArrayCodec(st map[string]*Codec, enclosingNamespace string, schemaMap m
 					return nil, buf, fmt.Errorf("cannot decode Array block count: %s", err)
 				}
 				blockCount = value.(int64)
+				if blockCount < 0 {
+					// NOTE: A negative block count implies there is a long
+					// encoded block size following the negative block count. We
+					// have no use for the block size in this decoder, so we
+					// read and discard the value.
+					blockCount = -blockCount // convert to its positive equivalent
+					if _, buf, err = longDecoder(buf); err != nil {
+						return nil, buf, fmt.Errorf("cannot decode Array block size: %s", err)
+					}
+				}
+				// Ensure block count does not exceed some sane value.
+				if blockCount > MaxBlockCount {
+					return nil, buf, fmt.Errorf("cannot decode Array when block count exceeds MaxBlockCount: %d > %d", blockCount, MaxBlockCount)
+				}
 			}
 			return arrayValues, buf, nil
 		},
@@ -67,16 +83,18 @@ func makeArrayCodec(st map[string]*Codec, enclosingNamespace string, schemaMap m
 			case []interface{}:
 				arrayValues = i
 			default:
-				// NOTE: If given any sort of slice, zip values to items as convenience to client.
+				// NOTE: When given a slice of any other type, zip values to
+				// items as a convenience to client.
 				v := reflect.ValueOf(datum)
 				if v.Kind() != reflect.Slice {
 					return buf, fmt.Errorf("Array: expected []interface{}; received: %T", datum)
 				}
 				// NOTE: Two better alternatives to the current algorithm are:
-				//   (1) mutate the reflection tuple underneath to convert the []int, for example,
-				//       to []interface{}, with O(1) complexity
-				//   (2) use copy builtin to zip the data items over, much like what gorrd does,
-				//       with O(n) complexity, but more efficient than what's below.
+				//   (1) mutate the reflection tuple underneath to convert the
+				//       []int, for example, to []interface{}, with O(1) complexity
+				//   (2) use copy builtin to zip the data items over, much like
+				//       what gorrd does, with O(n) complexity, but more
+				//       efficient than what's below.
 				arrayValues = make([]interface{}, v.Len())
 				for idx := 0; idx < v.Len(); idx++ {
 					arrayValues[idx] = v.Index(idx).Interface()
@@ -90,7 +108,7 @@ func makeArrayCodec(st map[string]*Codec, enclosingNamespace string, schemaMap m
 					}
 				}
 			}
-			return longEncoder(buf, 0)
+			return longEncoder(buf, 0) // append trailing 0 block count to signal end of Array
 		},
 	}, nil
 }
