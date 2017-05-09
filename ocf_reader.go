@@ -10,9 +10,29 @@ import (
 	"hash/crc32"
 	"io"
 	"io/ioutil"
+	"math"
 
 	"github.com/golang/snappy"
 )
+
+// MaxAllocationSize defines the maximum length that will be eagerly allocated
+// for variable length values. This is mostly done to avoid triggering a panic
+// when make() is called.
+//
+// If you need to decode Avro data which have variable length contents such as
+// string or byte fields longer than ~2.2GB, modify this value at your
+// discretion. Alternatively you can also lower it to be more defensive towards
+// excess memory allocation.
+//
+// On a 32bit platform this value should not exceed math.MaxInt32, as Go's make
+// function is limited to only creating MaxInt number of objects at a time. On
+// a 64bit platform the limitation is primarily your avaialble memory.
+//
+// Example:
+//	func init() {
+//		goavro.MaxAllocationSize = (1 << 40) // 1 TB of runes or bytes
+//	}
+var MaxAllocationSize = int64(math.MaxInt32)
 
 // OCFReader structure is used to read Object Container Files (OCF).
 type OCFReader struct {
@@ -139,6 +159,10 @@ func (ocfr *OCFReader) Scan() bool {
 			ocfr.err = fmt.Errorf("the size of a block can't be negative")
 			return false
 		}
+		if blockSize > MaxAllocationSize {
+			ocfr.err = fmt.Errorf("implementation error: length of a block (%d) is greater than the max currentl    y allowed with MaxAllocationSize (%d)", blockSize, MaxAllocationSize)
+			return false
+		}
 
 		// read entire block into buffer
 		ocfr.block = make([]byte, blockSize)
@@ -257,7 +281,10 @@ func metadataReader(br *bufio.Reader) (map[string][]byte, error) {
 	if initialSize < 0 {
 		initialSize = -initialSize
 	}
-	mapValues := make(map[string][]byte, initialSize)
+	mapValues := make(map[string][]byte)
+	if initialSize < MaxAllocationSize {
+		mapValues = make(map[string][]byte, initialSize)
+	}
 
 	for blockCount != 0 {
 		if blockCount < 0 {
@@ -304,6 +331,10 @@ func bytesReader(br *bufio.Reader) ([]byte, error) {
 	if size < 0 {
 		return nil, fmt.Errorf("bytes: negative length: %d", size)
 	}
+	if size > MaxAllocationSize {
+		return nil, fmt.Errorf("bytes: implementation error: length of bytes (%d) is greater than the max currently set with MaxAllocationSize (%d)", size, MaxAllocationSize)
+	}
+
 	buf := make([]byte, size)
 	_, err = io.ReadAtLeast(br, buf, int(size))
 	if err != nil {

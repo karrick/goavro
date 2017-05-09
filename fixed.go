@@ -18,7 +18,7 @@ func makeFixedCodec(st map[string]*Codec, enclosingNamespace string, schemaMap m
 		return nil, fmt.Errorf("Fixed %q ought to have size key", c.typeName)
 	}
 	s2, ok := s1.(float64)
-	if !ok || s2 <= 0 {
+	if !ok || int(s2) <= 0 {
 		return nil, fmt.Errorf("Fixed %q size ought to be number greater than zero: %v", c.typeName, s1)
 	}
 	size := int(s2)

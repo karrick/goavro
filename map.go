@@ -34,7 +34,10 @@ func makeMapCodec(st map[string]*Codec, namespace string, schemaMap map[string]i
 			if initialSize < 0 {
 				initialSize = -initialSize
 			}
-			mapValues := make(map[string]interface{}, initialSize)
+			mapValues := make(map[string]interface{})
+			if initialSize < MaxAllocationSize {
+				mapValues = make(map[string]interface{}, initialSize)
+			}
 
 			for blockCount != 0 {
 				if blockCount < 0 {
