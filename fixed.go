@@ -18,13 +18,16 @@ func makeFixedCodec(st map[string]*Codec, enclosingNamespace string, schemaMap m
 		return nil, fmt.Errorf("Fixed %q ought to have size key", c.typeName)
 	}
 	s2, ok := s1.(float64)
-	if !ok || s2 <= 0 {
+	if !ok {
 		return nil, fmt.Errorf("Fixed %q size ought to be number greater than zero: %v", c.typeName, s1)
 	}
-	size := int(s2)
+	size := uint(s2)
+	if size == 0 {
+		return nil, fmt.Errorf("Fixed %q size ought to be number greater than zero: %v", c.typeName, s1)
+	}
 
 	c.binaryDecoder = func(buf []byte) (interface{}, []byte, error) {
-		if buflen := len(buf); size > buflen {
+		if buflen := uint(len(buf)); size > buflen {
 			return nil, buf, fmt.Errorf("Fixed %q short buffer: size exceeds remaining buffer length: %d > %d", c.typeName, size, buflen)
 		}
 		return buf[:size], buf[size:], nil
@@ -39,8 +42,8 @@ func makeFixedCodec(st map[string]*Codec, enclosingNamespace string, schemaMap m
 		default:
 			return buf, fmt.Errorf("cannot encode Fixed %q: expected string or bytes; received: %T", c.typeName, v)
 		}
-		if count := len(value); count != size {
-			return buf, fmt.Errorf("cannot encode Fixed %q: datum length ought to equal size: %d != %d", c.typeName, count, size)
+		if count := uint(len(value)); count != size {
+			return buf, fmt.Errorf("cannot encode Fixed %q: datum size ought to equal schema size: %d != %d", c.typeName, count, size)
 		}
 		return append(buf, value...), nil
 	}
