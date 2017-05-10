@@ -257,6 +257,27 @@ func (ocfr *OCFReader) Codec() *Codec {
 	return ocfr.c
 }
 
+// CompressionID returns the ID of the compression algorithm found within the
+// OCF file.
+func (ocfr *OCFReader) CompressionID() Compression {
+	return ocfr.compression
+}
+
+// CompressionName returns the name of the compression algorithm found within
+// the OCF file.
+func (ocfr *OCFReader) CompressionName() string {
+	switch ocfr.compression {
+	case CompressionNull:
+		return CompressionNullLabel
+	case CompressionDeflate:
+		return CompressionDeflateLabel
+	case CompressionSnappy:
+		return CompressionSnappyLabel
+	default:
+		return "unrecognized compression algorithm"
+	}
+}
+
 // Schema returns the schema found within the OCF file.
 func (ocfr *OCFReader) Schema() string {
 	return ocfr.schema
