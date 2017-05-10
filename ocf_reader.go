@@ -16,7 +16,7 @@ import (
 
 // OCFReader structure is used to read Object Container Files (OCF).
 type OCFReader struct {
-	bd             BinaryDecoder
+	c              *Codec
 	block          []byte
 	br             *bufio.Reader
 	compression    Compression
@@ -102,7 +102,7 @@ func NewOCFReader(ior io.Reader) (*OCFReader, error) {
 		return nil, fmt.Errorf("cannot read sync marker: only read %d bytes: %s", n, err)
 	}
 
-	return &OCFReader{br: br, bd: bd, syncMarker: sm, compression: compression, schema: string(value)}, nil
+	return &OCFReader{br: br, c: bd, syncMarker: sm, compression: compression, schema: string(value)}, nil
 }
 
 // Err returns the last error encountered while reading the OCF file. It does
@@ -243,13 +243,18 @@ func (ocfr *OCFReader) Read() (interface{}, error) {
 
 	// decode one data item from block
 	var datum interface{}
-	datum, ocfr.block, ocfr.err = ocfr.bd.BinaryDecode(ocfr.block)
+	datum, ocfr.block, ocfr.err = ocfr.c.BinaryDecode(ocfr.block)
 	if ocfr.err != nil {
 		return false, ocfr.err
 	}
 	ocfr.remainingItems--
 
 	return datum, nil
+}
+
+// Codec returns the codec found within the OCF file.
+func (ocfr *OCFReader) Codec() *Codec {
+	return ocfr.c
 }
 
 // Schema returns the schema found within the OCF file.
