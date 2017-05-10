@@ -160,7 +160,7 @@ func BenchmarkNewCodecV5(b *testing.B) {
 	benchmarkNewCodecV5(b, "fixtures/quickstop.avsc")
 }
 
-func benchmarkDecodeV4(b *testing.B, avscPath, avroPath string) {
+func benchmarkBinaryDecodeV4(b *testing.B, avscPath, avroPath string) {
 	schemaSpecification, err := ioutil.ReadFile(avscPath)
 	if err != nil {
 		b.Fatal(err)
@@ -184,7 +184,7 @@ func benchmarkDecodeV4(b *testing.B, avscPath, avroPath string) {
 	}
 }
 
-func benchmarkDecodeV5(b *testing.B, avscPath, avroPath string) {
+func benchmarkBinaryDecodeV5(b *testing.B, avscPath, avroPath string) {
 	schemaSpecification, err := ioutil.ReadFile(avscPath)
 	if err != nil {
 		b.Fatal(err)
@@ -208,7 +208,7 @@ func benchmarkDecodeV5(b *testing.B, avscPath, avroPath string) {
 	}
 }
 
-func benchmarkEncodeV4(b *testing.B, avscPath, avroPath string) {
+func benchmarkBinaryEncodeV4(b *testing.B, avscPath, avroPath string) {
 	schemaSpecification, err := ioutil.ReadFile(avscPath)
 	if err != nil {
 		b.Fatal(err)
@@ -243,7 +243,7 @@ func benchmarkEncodeV4(b *testing.B, avscPath, avroPath string) {
 	}
 }
 
-func benchmarkEncodeV5(b *testing.B, avscPath, avroPath string) {
+func benchmarkBinaryEncodeV5(b *testing.B, avscPath, avroPath string) {
 	schemaSpecification, err := ioutil.ReadFile(avscPath)
 	if err != nil {
 		b.Fatal(err)
@@ -280,18 +280,18 @@ func benchmarkEncodeV5(b *testing.B, avscPath, avroPath string) {
 	}
 }
 
-func BenchmarkDecodeV4(b *testing.B) {
-	benchmarkDecodeV4(b, "fixtures/quickstop.avsc", "fixtures/quickstop-null.avro")
+func BenchmarkBinaryDecodeV4(b *testing.B) {
+	benchmarkBinaryDecodeV4(b, "fixtures/quickstop.avsc", "fixtures/quickstop-null.avro")
 }
 
-func BenchmarkDecodeV5(b *testing.B) {
-	benchmarkDecodeV5(b, "fixtures/quickstop.avsc", "fixtures/quickstop-null.avro")
+func BenchmarkBinaryDecodeV5(b *testing.B) {
+	benchmarkBinaryDecodeV5(b, "fixtures/quickstop.avsc", "fixtures/quickstop-null.avro")
 }
 
-func BenchmarkEncodeV4(b *testing.B) {
-	benchmarkEncodeV4(b, "fixtures/quickstop.avsc", "fixtures/quickstop-null.avro")
+func BenchmarkBinaryEncodeV4(b *testing.B) {
+	benchmarkBinaryEncodeV4(b, "fixtures/quickstop.avsc", "fixtures/quickstop-null.avro")
 }
 
-func BenchmarkEncodeV5(b *testing.B) {
-	benchmarkEncodeV5(b, "fixtures/quickstop.avsc", "fixtures/quickstop-null.avro")
+func BenchmarkBinaryEncodeV5(b *testing.B) {
+	benchmarkBinaryEncodeV5(b, "fixtures/quickstop.avsc", "fixtures/quickstop-null.avro")
 }
