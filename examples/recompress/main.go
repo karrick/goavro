@@ -17,7 +17,9 @@ func usage() {
 	}
 	base := filepath.Base(executable)
 	fmt.Fprintf(os.Stderr, "Usage of %s:\n", base)
-	fmt.Fprintf(os.Stderr, "\t%s [-compress null|deflate|snappy] [-count N] from-file to-file\n", base)
+	fmt.Fprintf(os.Stderr, "\t%s [-compress null|deflate|snappy] [-count N] [from-file to-file]\n", base)
+	fmt.Fprintf(os.Stderr, "\tAs a special case, when there are no filename arguments, %s will read\n", base)
+	fmt.Fprintf(os.Stderr, "\tfrom its standard input and write to its standard output.\n")
 	flag.PrintDefaults()
 	os.Exit(2)
 }
@@ -39,29 +41,51 @@ func main() {
 		bail(fmt.Errorf("unsupported compression codec: %s", *compress))
 	}
 
-	if len(flag.Args()) == 0 {
+	var fromF io.ReadCloser
+	var toF io.WriteCloser
+	var err error
+
+	switch len(flag.Args()) {
+	case 0:
+		stat, err := os.Stdin.Stat()
+		if err != nil {
+			bail(err)
+		}
+		if (stat.Mode() & os.ModeCharDevice) != 0 {
+			usage()
+		}
+		stat, err = os.Stdout.Stat()
+		if err != nil {
+			bail(err)
+		}
+		if (stat.Mode() & os.ModeCharDevice) != 0 {
+			usage()
+		}
+		fromF = os.Stdin
+		toF = os.Stdout
+	case 2:
+		fromF, err = os.Open(flag.Arg(0))
+		if err != nil {
+			bail(err)
+		}
+		defer func(ioc io.Closer) {
+			if err := ioc.Close(); err != nil {
+				bail(err)
+			}
+		}(fromF)
+
+		toF, err = os.Create(flag.Arg(1))
+		if err != nil {
+			bail(err)
+		}
+		defer func(ioc io.Closer) {
+			if err := ioc.Close(); err != nil {
+				bail(err)
+			}
+		}(toF)
+	default:
 		usage()
 	}
-
-	fromF, err := os.Open(flag.Arg(0))
-	if err != nil {
-		bail(err)
-	}
-	defer func(ioc io.Closer) {
-		if err := ioc.Close(); err != nil {
-			bail(err)
-		}
-	}(fromF)
-
-	toF, err := os.Create(flag.Arg(1))
-	if err != nil {
-		bail(err)
-	}
-	defer func(ioc io.Closer) {
-		if err := ioc.Close(); err != nil {
-			bail(err)
-		}
-	}(toF)
 
 	if err := transcode(fromF, toF, compression, *count); err != nil {
 		bail(err)
