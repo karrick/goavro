@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"os"
@@ -36,13 +35,13 @@ func dumpFromReader(ior io.Reader) error {
 	if err != nil {
 		return err
 	}
+	c := ocfr.Codec()
 	for ocfr.Scan() {
 		datum, err := ocfr.Read()
 		if err != nil {
 			return err
 		}
-		// fmt.Println(datum)
-		buf, err := json.Marshal(datum)
+		buf, err := c.TextEncode(nil, datum)
 		if err != nil {
 			return err
 		}
