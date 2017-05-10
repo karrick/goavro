@@ -29,8 +29,8 @@ type OCFReader struct {
 
 const readBlockSize = 4096 // read and process data by blocks
 
-// NewOCFReader initializes and returns a new structure used to read an Avro Object Container File
-// (OCF).
+// NewOCFReader initializes and returns a new structure used to read an Avro
+// Object Container File (OCF).
 //
 //    func example(ior io.Reader) error {
 //    	ocfr, err := goavro.NewOCFReader(ior)
@@ -71,11 +71,13 @@ func NewOCFReader(ior io.Reader) (*OCFReader, error) {
 	// ensure avro.codec valid
 	var compression Compression
 	value, ok := metadata["avro.codec"]
-	// NOTE: If ok is false and "avro.codec" was not included in the metadata header, assumes compression codec is null
+	// NOTE: If ok is false and "avro.codec" was not included in the metadata
+	// header, assumes compression codec is null
 	if ok {
 		switch avroCodec := string(value); avroCodec {
 		case "", CompressionNullLabel:
-			// no action, because zero value of CompressionCodec specifies "null" compression
+			// no action, because zero value of CompressionCodec specifies
+			// "null" compression
 		case CompressionDeflateLabel:
 			compression = CompressionDeflate
 		case CompressionSnappyLabel:
@@ -130,7 +132,8 @@ func (ocfr *OCFReader) Scan() bool {
 			return false
 		}
 
-		// Read the block count and update the number of remaining items for this block
+		// Read the block count and update the number of remaining items for
+		// this block
 		ocfr.remainingItems, ocfr.err = longBinaryReader(ocfr.br)
 		if ocfr.err != nil {
 			if ocfr.err == io.EOF {
@@ -231,7 +234,8 @@ func (ocfr *OCFReader) Scan() bool {
 // See the documentation for goavro.NewOCFReader for an example of how to use
 // Read.
 func (ocfr *OCFReader) Read() (interface{}, error) {
-	// NOTE: Test previous error before testing readReady to prevent overwriting previous error.
+	// NOTE: Test previous error before testing readReady to prevent overwriting
+	// previous error.
 	if ocfr.err != nil {
 		return nil, ocfr.err
 	}
@@ -283,8 +287,8 @@ func (ocfr *OCFReader) Schema() string {
 	return ocfr.schema
 }
 
-// longBinaryReader reads bytes from bufio.Reader until has complete long value, or
-// read error. It _could_ accept io.ByteReader interface, but receiving the
+// longBinaryReader reads bytes from bufio.Reader until has complete long value,
+// or read error. It _could_ accept io.ByteReader interface, but receiving the
 // exact needed structure is faster.
 func longBinaryReader(br *bufio.Reader) (int64, error) {
 	var value uint64
@@ -303,9 +307,9 @@ func longBinaryReader(br *bufio.Reader) (int64, error) {
 	}
 }
 
-// metadataBinaryReader reads bytes from bufio.Reader until has entire map value, or
-// read error. It _could_ accept io.Reader interface, but receiving the exact
-// needed structure is faster.
+// metadataBinaryReader reads bytes from bufio.Reader until has entire map
+// value, or read error. It _could_ accept io.Reader interface, but receiving
+// the exact needed structure is faster.
 func metadataBinaryReader(br *bufio.Reader) (map[string][]byte, error) {
 	var err error
 	var value interface{}
@@ -316,10 +320,9 @@ func metadataBinaryReader(br *bufio.Reader) (map[string][]byte, error) {
 	}
 	blockCount := value.(int64)
 	if blockCount < 0 {
-		// NOTE: A negative block count implies there is a long encoded
-		// block size following the negative block count. We have no use
-		// for the block size in this decoder, so we read and discard
-		// the value.
+		// NOTE: A negative block count implies there is a long encoded block
+		// size following the negative block count. We have no use for the block
+		// size in this decoder, so we read and discard the value.
 		blockCount = -blockCount // convert to its positive equivalent
 		if _, err = longBinaryReader(br); err != nil {
 			return nil, fmt.Errorf("cannot decode Map block size: %s", err)
@@ -330,9 +333,9 @@ func metadataBinaryReader(br *bufio.Reader) (map[string][]byte, error) {
 		return nil, fmt.Errorf("cannot decode Map when block count exceeds MaxBlockCount: %d > %d", blockCount, MaxBlockCount)
 	}
 	// NOTE: While the attempt of a RAM optimization shown below is not
-	// necessary, many encoders will encode all items in a single block.
-	// We can optimize amount of RAM allocated by runtime for the array
-	// by initializing the array for that number of items.
+	// necessary, many encoders will encode all items in a single block.  We can
+	// optimize amount of RAM allocated by runtime for the array by initializing
+	// the array for that number of items.
 	mapValues := make(map[string][]byte, blockCount)
 
 	for blockCount != 0 {
@@ -357,10 +360,9 @@ func metadataBinaryReader(br *bufio.Reader) (map[string][]byte, error) {
 		}
 		blockCount = value.(int64)
 		if blockCount < 0 {
-			// NOTE: A negative block count implies there is a long
-			// encoded block size following the negative block count. We
-			// have no use for the block size in this decoder, so we
-			// read and discard the value.
+			// NOTE: A negative block count implies there is a long encoded
+			// block size following the negative block count. We have no use for
+			// the block size in this decoder, so we read and discard the value.
 			blockCount = -blockCount // convert to its positive equivalent
 			if _, err = longBinaryReader(br); err != nil {
 				return nil, fmt.Errorf("cannot decode Map block size: %s", err)
@@ -374,10 +376,10 @@ func metadataBinaryReader(br *bufio.Reader) (map[string][]byte, error) {
 	return mapValues, nil
 }
 
-// bytesBinaryReader reads bytes from bufio.Reader and returns byte slice of specified
-// size or the error encountered while trying to read those bytes. It _could_
-// accept io.Reader interface, but receiving the exact needed structure is
-// faster.
+// bytesBinaryReader reads bytes from bufio.Reader and returns byte slice of
+// specified size or the error encountered while trying to read those bytes. It
+// _could_ accept io.Reader interface, but receiving the exact needed structure
+// is faster.
 func bytesBinaryReader(br *bufio.Reader) ([]byte, error) {
 	size, err := longBinaryReader(br)
 	if err != nil {

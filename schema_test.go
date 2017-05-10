@@ -167,6 +167,7 @@ func TestMapValueTypeRecord(t *testing.T) {
 		0,    // map has no more blocks
 	}
 
-	// cannot decode because order of map key enumeration random, and records are returned as a Go map
+	// cannot decode because order of map key enumeration random, and records
+	// are returned as a Go map
 	testBinaryEncodePass(t, schema, datum, expected)
 }

@@ -78,8 +78,6 @@ func intEncoder(buf []byte, datum interface{}) ([]byte, error) {
 	return integerBinaryEncoder(buf, encoded)
 }
 
-// receives any Go numeric type and casts to int64, possibly with data loss if the value the client
-// sent is not represented in a int64.
 func longEncoder(buf []byte, datum interface{}) ([]byte, error) {
 	var value int64
 	switch v := datum.(type) {

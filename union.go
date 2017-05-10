@@ -6,7 +6,8 @@ import (
 	"fmt"
 )
 
-// Union wraps a datum value in a map for encoding as a Union, as required by Union encoder.
+// Union wraps a datum value in a map for encoding as a Union, as required by
+// Union encoder.
 func Union(name string, datum interface{}) interface{} {
 	if datum == nil && name == "null" {
 		return nil

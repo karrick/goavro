@@ -270,7 +270,8 @@ func bytesTextEncoder(buf []byte, datum interface{}) ([]byte, error) {
 		}
 		// This Code Point _could_ be encoded as a single byte, however, it's
 		// above standard ASCII range (b > 127), therefore must encode using its
-		// four-byte hexidecimal equivalent, which will always start with the high byte 00
+		// four-byte hexidecimal equivalent, which will always start with the
+		// high byte 00
 		buf = appendUnicodeHex(buf, uint16(b))
 	}
 	return append(buf, '"'), nil // postfix buffer with double quote

@@ -6,6 +6,8 @@ import (
 	"unicode"
 )
 
+// gobble advances to non whitespace and returns an error if the next non
+// whitespace byte is not what is expected.
 func gobble(buf []byte, expected byte) ([]byte, error) {
 	var err error
 	if buf, err = advanceToNonWhitespace(buf); err != nil {

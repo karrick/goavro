@@ -4,8 +4,8 @@ import (
 	"fmt"
 )
 
-// Fixed does not have child objects, therefore whatever namespace it defines is just to store its
-// name in the symbol table.
+// Fixed does not have child objects, therefore whatever namespace it defines is
+// just to store its name in the symbol table.
 func makeFixedCodec(st map[string]*Codec, enclosingNamespace string, schemaMap map[string]interface{}) (*Codec, error) {
 	c, err := registerNewCodec(st, schemaMap, enclosingNamespace)
 	if err != nil {

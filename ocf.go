@@ -2,8 +2,8 @@ package goavro
 
 import "math"
 
-// Compression are values used to specify compression algorithm used to
-// compress and decompress Avro Object Container File (OCF) streams.
+// Compression are values used to specify compression algorithm used to compress
+// and decompress Avro Object Container File (OCF) streams.
 type Compression uint8
 
 const (

@@ -73,7 +73,8 @@ func TestUnionMapRecordFitsInRecord(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// the provided datum value could be encoded by either the map or the record schemas above
+	// the provided datum value could be encoded by either the map or the record
+	// schemas above
 	datum := map[string]interface{}{
 		"field1": 3,
 		"field2": 3.5,

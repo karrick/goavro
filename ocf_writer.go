@@ -17,9 +17,15 @@ import (
 
 // OCFWriterConfig is used to specify creation parameters for OCFWriter.
 type OCFWriterConfig struct {
-	W           io.Writer   // W specifies the io.Writer to send the encode the data, (required).
-	Schema      string      // Schema specifies the Avro schema for the data to be encoded, (required).
-	Compression Compression // Codec specifies the compression codec used, (optional). If omitted, defaults to "null" codec.
+	// W specifies the io.Writer to send the encode the data, (required).
+	W io.Writer
+
+	// Schema specifies the Avro schema for the data to be encoded, (required).
+	Schema string
+
+	// Codec specifies the compression codec used, (optional). If omitted,
+	// defaults to "null" codec.
+	Compression Compression
 }
 
 // OCFWriter is used to create an Avro Object Container File (OCF).
@@ -30,8 +36,8 @@ type OCFWriter struct {
 	compression Compression
 }
 
-// NewOCFWriter returns a newly created OCFWriter which may be used to create an Avro Object
-// Container File (OCF).
+// NewOCFWriter returns a newly created OCFWriter which may be used to create an
+// Avro Object Container File (OCF).
 func NewOCFWriter(config OCFWriterConfig) (*OCFWriter, error) {
 	if config.W == nil {
 		return nil, errors.New("cannot create OCFWriter without io.WriteCloser: IOW")
@@ -64,12 +70,14 @@ func NewOCFWriter(config OCFWriterConfig) (*OCFWriter, error) {
 
 	avroSchema, err := compactSchema(config.Schema)
 	if err != nil {
-		// this error is not expected, because NewCodec above already vetted schema
+		// this error is not expected, because NewCodec above already vetted
+		// schema
 		return nil, err
 	}
 
-	// Create buffer for OCF header.  First 4 bytes are magic, and we'll use copy to fill them in,
-	// so initialize buffer's length with 4, and its capacity equal to length of avro schema plus a constant.
+	// Create buffer for OCF header.  First 4 bytes are magic, and we'll use
+	// copy to fill them in, so initialize buffer's length with 4, and its
+	// capacity equal to length of avro schema plus a constant.
 	buf := make([]byte, 4, len(avroSchema)+48) // OCF header is usually about 48 bytes longer than its compressed schema
 	_ = copy(buf, magicBytes)
 

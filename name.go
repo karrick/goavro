@@ -8,7 +8,8 @@ import (
 
 const nullNamespace = ""
 
-// ErrInvalidName is the error returned when one or more parts of an Avro name is invalid.
+// ErrInvalidName is the error returned when one or more parts of an Avro name
+// is invalid.
 type ErrInvalidName struct {
 	Message string
 }
@@ -17,8 +18,8 @@ func (e ErrInvalidName) Error() string {
 	return "schema name ought to " + e.Message
 }
 
-// NOTE: This function designed to work with name components, after they have been split on the
-// period rune.
+// NOTE: This function designed to work with name components, after they have
+// been split on the period rune.
 func isRuneInvalidForFirstCharacter(r rune) bool {
 	// if (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') || r == '_' || r == '.' {
 
@@ -62,8 +63,8 @@ type name struct {
 	namespace string // for use when building new name from existing one
 }
 
-// newName returns a new Name instance after first ensuring the arguments do not violate any of the
-// Avro naming rules.
+// newName returns a new Name instance after first ensuring the arguments do not
+// violate any of the Avro naming rules.
 func newName(n, ns, ens string) (*name, error) {
 	var nn name
 
@@ -117,12 +118,6 @@ func newNameFromSchemaMap(enclosingNamespace string, schemaMap map[string]interf
 	}
 
 	return newName(nameString, namespaceString, enclosingNamespace)
-}
-
-// Equal returns true when two Name instances refer to the same Avro name; otherwise it returns
-// false.
-func (n name) Equal(n2 name) bool {
-	return n.fullName == n2.fullName
 }
 
 func (n name) String() string {

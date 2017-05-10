@@ -61,8 +61,6 @@ func doubleEncoder(buf []byte, datum interface{}) ([]byte, error) {
 	return floatingBinaryEncoder(buf, uint64(math.Float64bits(value)), doubleEncodedLength)
 }
 
-// receives any Go numeric type and casts to float32.  if cast is lossy, it returns an encoding
-// error
 func floatEncoder(buf []byte, datum interface{}) ([]byte, error) {
 	var value float32
 	switch v := datum.(type) {
@@ -104,8 +102,6 @@ func floatingBinaryEncoder(buf []byte, bits uint64, byteCount int) ([]byte, erro
 // Text Decode
 ////////////////////////////////////////
 
-// receives any Go numeric type and casts to float64, possibly with data loss if the value the
-// client sent is not represented in a float64.
 func doubleTextDecoder(buf []byte) (interface{}, []byte, error) {
 	return floatingTextDecoder(buf, 64)
 }

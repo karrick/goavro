@@ -5,8 +5,8 @@ import (
 )
 
 func makeRecordCodec(st map[string]*Codec, enclosingNamespace string, schemaMap map[string]interface{}) (*Codec, error) {
-	// NOTE: To support recursive data types, create the codec and register it using the specified
-	// name, and fill in the codec functions later.
+	// NOTE: To support recursive data types, create the codec and register it
+	// using the specified name, and fill in the codec functions later.
 	c, err := registerNewCodec(st, schemaMap, enclosingNamespace)
 	if err != nil {
 		return nil, fmt.Errorf("Record ought to have valid name: %s", err)
@@ -31,14 +31,15 @@ func makeRecordCodec(st map[string]*Codec, enclosingNamespace string, schemaMap 
 			return nil, fmt.Errorf("Record %q field %d ought to be valid Avro named type; received: %v", c.typeName, i+1, fieldSchema)
 		}
 
-		// NOTE: field names are not registered in the symbol table, because field names are not
-		// individually addressable codecs.
+		// NOTE: field names are not registered in the symbol table, because
+		// field names are not individually addressable codecs.
 
 		fieldCodec, err := buildCodecForTypeDescribedByMap(st, c.typeName.namespace, fieldSchemaMap)
 		if err != nil {
 			return nil, fmt.Errorf("Record %q field %d ought to be valid Avro named type: %s", c.typeName, i+1, err)
 		}
-		// However, when creating a full name for the field name, be sure to use record's namespace
+		// However, when creating a full name for the field name, be sure to use
+		// record's namespace
 		n, err := newNameFromSchemaMap(c.typeName.namespace, fieldSchemaMap)
 		if err != nil {
 			return nil, fmt.Errorf("Record %q field %d ought to have valid name: %v", c.typeName, i+1, fieldSchemaMap)
@@ -76,7 +77,8 @@ func makeRecordCodec(st map[string]*Codec, enclosingNamespace string, schemaMap 
 		for i, fieldCodec := range codecFromIndex {
 			fieldName := nameFromIndex[i]
 
-			// NOTE: If field value was not specified in map, then attempt to encode the nil
+			// NOTE: If field value was not specified in map, then attempt to
+			// encode the nil
 			fieldValue, ok := valueMap[fieldName]
 
 			var err error
