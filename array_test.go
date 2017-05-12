@@ -110,4 +110,5 @@ func TestArrayTextCodecPass(t *testing.T) {
 	datum := []interface{}{"⌘ ", "value2"}
 	testTextEncodePass(t, schema, datum, []byte(`["\u0001\u2318 ","value2"]`))
 	testTextDecodePass(t, schema, datum, []byte(` [ "\u0001\u2318 " , "value2" ]`))
+	testTextCodecPass(t, schema, []interface{}{}, []byte(`[]`))
 }

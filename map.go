@@ -145,6 +145,9 @@ func genericMapTextDecoder(buf []byte, defaultCodec *Codec, codecFromKey map[str
 		if buf, _ = advanceToNonWhitespace(buf); len(buf) == 0 {
 			return nil, buf, io.ErrShortBuffer
 		}
+		if buf[0] == '}' {
+			return mapValues, buf[1:], nil
+		}
 		// decode key string
 		value, buf, err = stringTextDecoder(buf)
 		if err != nil {
@@ -199,10 +202,13 @@ func genericMapTextEncoder(buf []byte, datum interface{}, defaultCodec *Codec, c
 	}
 
 	var err error
+	var atLeastOne bool
 
 	buf = append(buf, '{')
 
 	for key, value := range valueMap {
+		atLeastOne = true
+
 		// Find a codec for the key
 		fieldCodec := codecFromKey[key]
 		if fieldCodec == nil {
@@ -226,5 +232,8 @@ func genericMapTextEncoder(buf []byte, datum interface{}, defaultCodec *Codec, c
 		buf = append(buf, ',')
 	}
 
-	return append(buf[:len(buf)-1], '}'), nil
+	if atLeastOne {
+		return append(buf[:len(buf)-1], '}'), nil
+	}
+	return append(buf, '}'), nil
 }

@@ -142,6 +142,9 @@ func makeArrayCodec(st map[string]*Codec, enclosingNamespace string, schemaMap m
 				if buf, _ = advanceToNonWhitespace(buf); len(buf) == 0 {
 					return nil, buf, io.ErrShortBuffer
 				}
+				if buf[0] == ']' {
+					return arrayValues, buf[1:], nil
+				}
 				value, buf, err = itemCodec.textDecoder(buf)
 				if err != nil {
 					return nil, buf, err
@@ -169,10 +172,13 @@ func makeArrayCodec(st map[string]*Codec, enclosingNamespace string, schemaMap m
 			}
 
 			var err error
+			var atLeastOne bool
 
 			buf = append(buf, '[')
 
 			for i, item := range arrayValues {
+				atLeastOne = true
+
 				// Encode value
 				buf, err = itemCodec.textEncoder(buf, item)
 				if err != nil {
@@ -182,7 +188,10 @@ func makeArrayCodec(st map[string]*Codec, enclosingNamespace string, schemaMap m
 				buf = append(buf, ',')
 			}
 
-			return append(buf[:len(buf)-1], ']'), nil
+			if atLeastOne {
+				return append(buf[:len(buf)-1], ']'), nil
+			}
+			return append(buf, ']'), nil
 		},
 	}, nil
 }
