@@ -154,7 +154,7 @@ func (ocfr *OCFReader) Scan() bool {
 		var blockSize int64
 		blockSize, ocfr.err = longBinaryReader(ocfr.br)
 		if ocfr.err != nil {
-			ocfr.err = fmt.Errorf("cannot read block size: %d; %s", blockSize, ocfr.err)
+			ocfr.err = fmt.Errorf("cannot read block size: %s", ocfr.err)
 			return false
 		}
 		if blockSize <= 0 {
