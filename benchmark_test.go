@@ -280,6 +280,43 @@ func benchmarkBinaryEncodeV5(b *testing.B, avscPath, avroPath string) {
 	}
 }
 
+func benchmarkTextEncodeV5(b *testing.B, avscPath, avroPath string) {
+	schemaSpecification, err := ioutil.ReadFile(avscPath)
+	if err != nil {
+		b.Fatal(err)
+	}
+	c, err := v5.NewCodec(string(schemaSpecification))
+	if err != nil {
+		b.Fatal(err)
+	}
+	blob, err := ioutil.ReadFile(avroPath)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	datum, _, err := c.BinaryDecode(blob)
+	if err != nil {
+		b.Fatal(err)
+	}
+
+	// b.Log(datum)
+
+	buf := make([]byte, 0, len(blob))
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		buf = buf[:0]
+		buf, err = c.TextEncode(buf, datum)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+	if false {
+		b.Logf("original file size: %d; encoded blob size: %d", len(blob), len(buf))
+	}
+}
+
 func BenchmarkBinaryDecodeV4(b *testing.B) {
 	benchmarkBinaryDecodeV4(b, "fixtures/quickstop.avsc", "fixtures/quickstop-null.avro")
 }

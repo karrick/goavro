@@ -73,7 +73,7 @@ func bytesTextDecoder(buf []byte) (interface{}, []byte, error) {
 		return nil, buf, io.ErrShortBuffer
 	}
 	if buf[0] != '"' {
-		return nil, buf, fmt.Errorf("expected initial \"; found: %c", buf[0])
+		return nil, buf, fmt.Errorf("expected initial \"; found: %#U", buf[0])
 	}
 	var newBytes []byte
 	var escaped bool
@@ -119,7 +119,7 @@ func bytesTextDecoder(buf []byte) (interface{}, []byte, error) {
 		}
 		newBytes = append(newBytes, b)
 	}
-	return nil, buf, fmt.Errorf("expected final \"; found: %c", buf[buflen-1])
+	return nil, buf, fmt.Errorf("expected final \"; found: %#U", buf[buflen-1])
 }
 
 func stringTextDecoder(buf []byte) (interface{}, []byte, error) {
@@ -128,7 +128,7 @@ func stringTextDecoder(buf []byte) (interface{}, []byte, error) {
 		return nil, buf, io.ErrShortBuffer
 	}
 	if buf[0] != '"' {
-		return nil, buf, fmt.Errorf("expected initial \"; found: %c", buf[0])
+		return nil, buf, fmt.Errorf("expected initial \"; found: %#U", buf[0])
 	}
 	var newBytes []byte
 	var escaped bool
@@ -194,7 +194,7 @@ func stringTextDecoder(buf []byte) (interface{}, []byte, error) {
 		}
 		newBytes = append(newBytes, b)
 	}
-	return nil, buf, fmt.Errorf("expected final \"; found: %c", buf[buflen-1])
+	return nil, buf, fmt.Errorf("expected final \"; found: %x", buf[buflen-1])
 }
 
 func parseUint64FromHexSlice(buf []byte) (uint64, error) {

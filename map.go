@@ -133,21 +133,22 @@ func genericMapTextDecoder(buf []byte, defaultCodec *Codec, codecFromKey map[str
 	var err error
 	var b byte
 
-	if buf, err = gobble(buf, '{'); err != nil {
-		return nil, buf, err
-	}
-
 	lencodec := len(codecFromKey)
 	mapValues := make(map[string]interface{}, lencodec)
 
+	if buf, err = gobble(buf, '{'); err != nil {
+		return nil, buf, err
+	}
+	if buf, _ = advanceToNonWhitespace(buf); len(buf) == 0 {
+		return nil, buf, io.ErrShortBuffer
+	}
+	// NOTE: Special case empty map
+	if buf[0] == '}' {
+		return mapValues, buf[1:], nil
+	}
+
 	// NOTE: Also terminates when read '}' byte.
 	for len(buf) > 0 {
-		if buf, _ = advanceToNonWhitespace(buf); len(buf) == 0 {
-			return nil, buf, io.ErrShortBuffer
-		}
-		if buf[0] == '}' {
-			return mapValues, buf[1:], nil
-		}
 		// decode key string
 		value, buf, err = stringTextDecoder(buf)
 		if err != nil {
@@ -178,6 +179,7 @@ func genericMapTextDecoder(buf []byte, defaultCodec *Codec, codecFromKey map[str
 		if err != nil {
 			return nil, buf, err
 		}
+		// set map value for key
 		mapValues[key] = value
 		// either comma or closing curly brace
 		if buf, _ = advanceToNonWhitespace(buf); len(buf) == 0 {
@@ -187,9 +189,13 @@ func genericMapTextDecoder(buf []byte, defaultCodec *Codec, codecFromKey map[str
 		case '}':
 			return mapValues, buf[1:], nil
 		case ',':
-			buf = buf[1:]
+			// no-op
 		default:
 			return nil, buf, fmt.Errorf("cannot decode Map: expected ',' or '}'; received: %q", b)
+		}
+		// NOTE: consume comma from above
+		if buf, _ = advanceToNonWhitespace(buf[1:]); len(buf) == 0 {
+			return nil, buf, io.ErrShortBuffer
 		}
 	}
 	return nil, buf, io.ErrShortBuffer

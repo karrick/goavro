@@ -126,6 +126,7 @@ func makeArrayCodec(st map[string]*Codec, enclosingNamespace string, schemaMap m
 			return longEncoder(buf, 0) // append trailing 0 block count to signal end of Array
 		},
 		textDecoder: func(buf []byte) (interface{}, []byte, error) {
+			var arrayValues []interface{}
 			var value interface{}
 			var err error
 			var b byte
@@ -133,18 +134,17 @@ func makeArrayCodec(st map[string]*Codec, enclosingNamespace string, schemaMap m
 			if buf, err = gobble(buf, '['); err != nil {
 				return nil, buf, err
 			}
-
-			var arrayValues []interface{}
+			if buf, _ = advanceToNonWhitespace(buf); len(buf) == 0 {
+				return nil, buf, io.ErrShortBuffer
+			}
+			// NOTE: Special case for empty array
+			if buf[0] == ']' {
+				return arrayValues, buf[1:], nil
+			}
 
 			// NOTE: Also terminates when read ']' byte.
 			for len(buf) > 0 {
 				// decode value
-				if buf, _ = advanceToNonWhitespace(buf); len(buf) == 0 {
-					return nil, buf, io.ErrShortBuffer
-				}
-				if buf[0] == ']' {
-					return arrayValues, buf[1:], nil
-				}
 				value, buf, err = itemCodec.textDecoder(buf)
 				if err != nil {
 					return nil, buf, err
@@ -158,9 +158,13 @@ func makeArrayCodec(st map[string]*Codec, enclosingNamespace string, schemaMap m
 				case ']':
 					return arrayValues, buf[1:], nil
 				case ',':
-					buf = buf[1:]
+					// no-op
 				default:
 					return nil, buf, fmt.Errorf("cannot decode Array: expected ',' or ']'; received: %q", b)
+				}
+				// NOTE: consume comma from above
+				if buf, _ = advanceToNonWhitespace(buf[1:]); len(buf) == 0 {
+					return nil, buf, io.ErrShortBuffer
 				}
 			}
 			return nil, buf, io.ErrShortBuffer
