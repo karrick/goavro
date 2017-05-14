@@ -12,7 +12,7 @@ func benchmarkNewCodecUsingV4(b *testing.B, avscPath string) {
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		newCodecUsingV4(b, string(schema))
+		_ = newCodecUsingV4(b, string(schema))
 	}
 }
 
@@ -23,7 +23,7 @@ func benchmarkNewCodecUsingV5(b *testing.B, avscPath string) {
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		newCodecUsingV5(b, string(schema))
+		_ = newCodecUsingV5(b, string(schema))
 	}
 }
 
@@ -69,7 +69,7 @@ func benchmarkBinaryFromNativeUsingV5(b *testing.B, avroPath string) {
 	nativeData, codec := nativeFromAvroUsingV5(b, avroBlob)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		binaryFromNativeUsingV5(b, codec, nativeData)
+		_ = binaryFromNativeUsingV5(b, codec, nativeData)
 	}
 }
 
