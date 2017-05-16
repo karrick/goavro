@@ -45,6 +45,7 @@ type TextEncoder interface {
 // go routines simultaneously.
 type Codec struct {
 	typeName *name
+	schema   string
 
 	binaryDecoder func([]byte) (interface{}, []byte, error)
 	textDecoder   func([]byte) (interface{}, []byte, error)
@@ -62,43 +63,50 @@ func newSymbolTable() map[string]*Codec {
 			textDecoder:   booleanTextDecoder,
 			textEncoder:   booleanTextEncoder,
 		},
-		"bytes": &Codec{typeName: &name{"bytes", nullNamespace},
+		"bytes": &Codec{
+			typeName:      &name{"bytes", nullNamespace},
 			binaryDecoder: bytesDecoder,
 			binaryEncoder: bytesEncoder,
 			textDecoder:   bytesTextDecoder,
 			textEncoder:   bytesTextEncoder,
 		},
-		"double": &Codec{typeName: &name{"double", nullNamespace},
+		"double": &Codec{
+			typeName:      &name{"double", nullNamespace},
 			binaryDecoder: doubleDecoder,
 			binaryEncoder: doubleEncoder,
 			textDecoder:   doubleTextDecoder,
 			textEncoder:   doubleTextEncoder,
 		},
-		"float": &Codec{typeName: &name{"float", nullNamespace},
+		"float": &Codec{
+			typeName:      &name{"float", nullNamespace},
 			binaryDecoder: floatDecoder,
 			binaryEncoder: floatEncoder,
 			textDecoder:   floatTextDecoder,
 			textEncoder:   floatTextEncoder,
 		},
-		"int": &Codec{typeName: &name{"int", nullNamespace},
+		"int": &Codec{
+			typeName:      &name{"int", nullNamespace},
 			binaryDecoder: intDecoder,
 			binaryEncoder: intEncoder,
 			textDecoder:   intTextDecoder,
 			textEncoder:   intTextEncoder,
 		},
-		"long": &Codec{typeName: &name{"long", nullNamespace},
+		"long": &Codec{
+			typeName:      &name{"long", nullNamespace},
 			binaryDecoder: longDecoder,
 			binaryEncoder: longEncoder,
 			textDecoder:   longTextDecoder,
 			textEncoder:   longTextEncoder,
 		},
-		"null": &Codec{typeName: &name{"null", nullNamespace},
+		"null": &Codec{
+			typeName:      &name{"null", nullNamespace},
 			binaryDecoder: nullDecoder,
 			binaryEncoder: nullEncoder,
 			textDecoder:   nullTextDecoder,
 			textEncoder:   nullTextEncoder,
 		},
-		"string": &Codec{typeName: &name{"string", nullNamespace},
+		"string": &Codec{
+			typeName:      &name{"string", nullNamespace},
 			binaryDecoder: stringDecoder,
 			binaryEncoder: stringEncoder,
 			textDecoder:   stringTextDecoder,
@@ -121,6 +129,7 @@ func NewCodec(schemaSpecification string) (*Codec, error) {
 	// schema, e.g., "long". While it is not valid JSON, it is a valid schema.
 	// Provide special handling for primitive type names.
 	if c, ok := st[schemaSpecification]; ok {
+		c.schema = schemaSpecification
 		return c, nil
 	}
 
@@ -131,7 +140,16 @@ func NewCodec(schemaSpecification string) (*Codec, error) {
 		return nil, fmt.Errorf("cannot unmarshal JSON: %s", err)
 	}
 
-	return buildCodec(st, nullNamespace, schema)
+	c, err := buildCodec(st, nullNamespace, schema)
+	if err == nil {
+		// compact schema and save it
+		compact, err := json.Marshal(schema)
+		if err != nil {
+			return nil, fmt.Errorf("cannot remarshal schema: %s", err)
+		}
+		c.schema = string(compact)
+	}
+	return c, err
 }
 
 // BinaryDecode converts Avro data in binary format from the provided byte slice
@@ -188,6 +206,11 @@ func (c Codec) TextEncode(buf []byte, datum interface{}) ([]byte, error) {
 		return buf, err // if error, return original byte slice
 	}
 	return newBuf, nil
+}
+
+// Schema returns the compact schema used to create the Codec.
+func (c Codec) Schema() string {
+	return c.schema
 }
 
 // convert a schema data structure to a codec, prefixing with specified

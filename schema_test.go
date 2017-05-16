@@ -44,6 +44,16 @@ func TestSchemaFailInvalidType(t *testing.T) {
 	testSchemaInvalid(t, `{"type":"flubber"}`, "unknown type name")
 }
 
+func TestCodecSchema(t *testing.T) {
+	codec, err := goavro.NewCodec(` {  "type" : "string" } `)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if actual, expected := codec.Schema(), `{"type":"string"}`; actual != expected {
+		t.Errorf("Actual: %v; Expected: %v", actual, expected)
+	}
+}
+
 func TestSchemaWeather(t *testing.T) {
 	testSchemaValid(t, `
 {"type": "record", "name": "test.Weather",
