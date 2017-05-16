@@ -44,8 +44,7 @@ type TextEncoder interface {
 // Codec is created as a stateless structure that can be safely used in multiple
 // go routines simultaneously.
 type Codec struct {
-	typeName    *name
-	symbolTable map[string]*Codec
+	typeName *name
 
 	binaryDecoder func([]byte) (interface{}, []byte, error)
 	textDecoder   func([]byte) (interface{}, []byte, error)
@@ -122,7 +121,6 @@ func NewCodec(schemaSpecification string) (*Codec, error) {
 	// schema, e.g., "long". While it is not valid JSON, it is a valid schema.
 	// Provide special handling for primitive type names.
 	if c, ok := st[schemaSpecification]; ok {
-		c.symbolTable = st
 		return c, nil
 	}
 
@@ -133,11 +131,7 @@ func NewCodec(schemaSpecification string) (*Codec, error) {
 		return nil, fmt.Errorf("cannot unmarshal JSON: %s", err)
 	}
 
-	c, err := buildCodec(st, nullNamespace, schema)
-	if err == nil {
-		c.symbolTable = st
-	}
-	return c, err
+	return buildCodec(st, nullNamespace, schema)
 }
 
 // BinaryDecode converts Avro data in binary format from the provided byte slice
