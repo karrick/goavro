@@ -3,7 +3,6 @@ package goavro_test
 import (
 	"bytes"
 	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/karrick/goavro"
@@ -17,12 +16,12 @@ func init() {
 		panic(err)
 	}
 
-	morePositiveThanMaxBlockCount, err = c.BinaryEncode(nil, (goavro.MaxBlockCount + 1))
+	morePositiveThanMaxBlockCount, err = c.BinaryFromNative(nil, (goavro.MaxBlockCount + 1))
 	if err != nil {
 		panic(err)
 	}
 
-	moreNegativeThanMaxBlockCount, err = c.BinaryEncode(nil, -(goavro.MaxBlockCount + 1))
+	moreNegativeThanMaxBlockCount, err = c.BinaryFromNative(nil, -(goavro.MaxBlockCount + 1))
 	if err != nil {
 		panic(err)
 	}
@@ -33,10 +32,8 @@ func testBinaryDecodeFail(t *testing.T, schema string, buf []byte, errorMessage 
 	if err != nil {
 		t.Fatal(err)
 	}
-	value, newBuffer, err := c.BinaryDecode(buf)
-	if err == nil || !strings.Contains(err.Error(), errorMessage) {
-		t.Errorf("Actual: %v; Expected: %s", err, errorMessage)
-	}
+	value, newBuffer, err := c.NativeFromBinary(buf)
+	ensureError(t, err, errorMessage)
 	if value != nil {
 		t.Errorf("Actual: %v; Expected: %v", value, nil)
 	}
@@ -50,10 +47,8 @@ func testBinaryEncodeFail(t *testing.T, schema string, datum interface{}, errorM
 	if err != nil {
 		t.Fatal(err)
 	}
-	buf, err := c.BinaryEncode(nil, datum)
-	if err == nil || !strings.Contains(err.Error(), errorMessage) {
-		t.Errorf("Actual: %v; Expected: %s", err, errorMessage)
-	}
+	buf, err := c.BinaryFromNative(nil, datum)
+	ensureError(t, err, errorMessage)
 	if buf != nil {
 		t.Errorf("Actual: %v; Expected: %v", buf, nil)
 	}
@@ -73,7 +68,7 @@ func testBinaryDecodePass(t *testing.T, schema string, datum interface{}, encode
 		t.Fatal(err)
 	}
 
-	value, remaining, err := codec.BinaryDecode(encoded)
+	value, remaining, err := codec.NativeFromBinary(encoded)
 	if err != nil {
 		t.Fatalf("schema: %s; %s", schema, err)
 	}
@@ -97,7 +92,7 @@ func testBinaryEncodePass(t *testing.T, schema string, datum interface{}, expect
 		t.Fatalf("Schma: %q %s", schema, err)
 	}
 
-	actual, err := codec.BinaryEncode(nil, datum)
+	actual, err := codec.BinaryFromNative(nil, datum)
 	if err != nil {
 		t.Fatalf("schema: %s; Datum: %v; %s", schema, datum, err)
 	}

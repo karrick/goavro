@@ -34,42 +34,42 @@ func makeEnumCodec(st map[string]*Codec, enclosingNamespace string, schemaMap ma
 		symbols[i] = symbol
 	}
 
-	c.binaryDecoder = func(buf []byte) (interface{}, []byte, error) {
+	c.nativeFromBinary = func(buf []byte) (interface{}, []byte, error) {
 		var value interface{}
 		var err error
 		var index int64
 
-		if value, buf, err = longDecoder(buf); err != nil {
-			return nil, buf, fmt.Errorf("cannot decode Enum %q: index: %s", c.typeName, err)
+		if value, buf, err = longNativeFromBinary(buf); err != nil {
+			return nil, nil, fmt.Errorf("cannot decode binary enum %q index: %s", c.typeName, err)
 		}
 		index = value.(int64)
 		if index < 0 || index >= int64(len(symbols)) {
-			return nil, buf, fmt.Errorf("cannot decode Enum %q: index ought to be between 0 and %d; read index: %d", c.typeName, len(symbols)-1, index)
+			return nil, nil, fmt.Errorf("cannot decode binary enum %q: index ought to be between 0 and %d; read index: %d", c.typeName, len(symbols)-1, index)
 		}
 		return symbols[index], buf, nil
 	}
-	c.binaryEncoder = func(buf []byte, datum interface{}) ([]byte, error) {
+	c.binaryFromNative = func(buf []byte, datum interface{}) ([]byte, error) {
 		someString, ok := datum.(string)
 		if !ok {
-			return buf, fmt.Errorf("cannot encode Enum %q: expected string; received: %T", c.typeName, datum)
+			return nil, fmt.Errorf("cannot encode binary enum %q: expected string; received: %T", c.typeName, datum)
 		}
 		for i, symbol := range symbols {
 			if symbol == someString {
-				return longEncoder(buf, i)
+				return longBinaryFromNative(buf, i)
 			}
 		}
-		return buf, fmt.Errorf("cannot encode Enum %q: value ought to be member of symbols: %v; %q", c.typeName, symbols, someString)
+		return nil, fmt.Errorf("cannot encode binary enum %q: value ought to be member of symbols: %v; %q", c.typeName, symbols, someString)
 	}
-	c.textDecoder = func(buf []byte) (interface{}, []byte, error) {
+	c.nativeFromTextual = func(buf []byte) (interface{}, []byte, error) {
 		if buf, _ = advanceToNonWhitespace(buf); len(buf) == 0 {
-			return nil, buf, io.ErrShortBuffer
+			return nil, nil, fmt.Errorf("cannot decode textual enum: %s", io.ErrShortBuffer)
 		}
 		// decode enum string
 		var value interface{}
 		var err error
-		value, buf, err = stringTextDecoder(buf)
+		value, buf, err = stringNativeFromTextual(buf)
 		if err != nil {
-			return nil, buf, fmt.Errorf("cannot read Map: expected key: %s", err)
+			return nil, nil, fmt.Errorf("cannot decode textual enum: expected key: %s", err)
 		}
 		someString := value.(string)
 		for _, symbol := range symbols {
@@ -77,19 +77,19 @@ func makeEnumCodec(st map[string]*Codec, enclosingNamespace string, schemaMap ma
 				return someString, buf, nil
 			}
 		}
-		return nil, buf, fmt.Errorf("cannot decode Enum %q: value ought to be member of symbols: %v; %q", c.typeName, symbols, someString)
+		return nil, nil, fmt.Errorf("cannot decode textual enum %q: value ought to be member of symbols: %v; %q", c.typeName, symbols, someString)
 	}
-	c.textEncoder = func(buf []byte, datum interface{}) ([]byte, error) {
+	c.textualFromNative = func(buf []byte, datum interface{}) ([]byte, error) {
 		someString, ok := datum.(string)
 		if !ok {
-			return buf, fmt.Errorf("cannot encode Enum %q: expected string; received: %T", c.typeName, datum)
+			return nil, fmt.Errorf("cannot encode textual enum %q: expected string; received: %T", c.typeName, datum)
 		}
 		for _, symbol := range symbols {
 			if symbol == someString {
-				return stringTextEncoder(buf, someString)
+				return stringTextualFromNative(buf, someString)
 			}
 		}
-		return buf, fmt.Errorf("cannot encode Enum %q: value ought to be member of symbols: %v; %q", c.typeName, symbols, someString)
+		return nil, fmt.Errorf("cannot encode textual enum %q: value ought to be member of symbols: %v; %q", c.typeName, symbols, someString)
 	}
 
 	return c, nil

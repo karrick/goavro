@@ -18,16 +18,16 @@ const (
 // Binary Decode
 ////////////////////////////////////////
 
-func doubleDecoder(buf []byte) (interface{}, []byte, error) {
+func doubleNativeFromBinary(buf []byte) (interface{}, []byte, error) {
 	if len(buf) < doubleEncodedLength {
-		return nil, nil, io.ErrShortBuffer
+		return nil, nil, fmt.Errorf("cannot decode binary double: %s", io.ErrShortBuffer)
 	}
 	return math.Float64frombits(binary.LittleEndian.Uint64(buf[:doubleEncodedLength])), buf[doubleEncodedLength:], nil
 }
 
-func floatDecoder(buf []byte) (interface{}, []byte, error) {
+func floatNativeFromBinary(buf []byte) (interface{}, []byte, error) {
 	if len(buf) < floatEncodedLength {
-		return nil, nil, io.ErrShortBuffer
+		return nil, nil, fmt.Errorf("cannot decode binary float: %s", io.ErrShortBuffer)
 	}
 	return math.Float32frombits(binary.LittleEndian.Uint32(buf[:floatEncodedLength])), buf[floatEncodedLength:], nil
 }
@@ -36,7 +36,7 @@ func floatDecoder(buf []byte) (interface{}, []byte, error) {
 // Binary Encode
 ////////////////////////////////////////
 
-func doubleEncoder(buf []byte, datum interface{}) ([]byte, error) {
+func doubleBinaryFromNative(buf []byte, datum interface{}) ([]byte, error) {
 	var value float64
 	switch v := datum.(type) {
 	case float64:
@@ -45,23 +45,23 @@ func doubleEncoder(buf []byte, datum interface{}) ([]byte, error) {
 		value = float64(v)
 	case int:
 		if value = float64(v); int(value) != v {
-			return buf, fmt.Errorf("double: provided Go int would lose precision: %d", v)
+			return nil, fmt.Errorf("cannot encode binary double: provided Go int would lose precision: %d", v)
 		}
 	case int64:
 		if value = float64(v); int64(value) != v {
-			return buf, fmt.Errorf("double: provided Go int64 would lose precision: %d", v)
+			return nil, fmt.Errorf("cannot encode binary double: provided Go int64 would lose precision: %d", v)
 		}
 	case int32:
 		if value = float64(v); int32(value) != v {
-			return buf, fmt.Errorf("double: provided Go int32 would lose precision: %d", v)
+			return nil, fmt.Errorf("cannot encode binary double: provided Go int32 would lose precision: %d", v)
 		}
 	default:
-		return buf, fmt.Errorf("double: expected: Go numeric; received: %T", datum)
+		return nil, fmt.Errorf("cannot encode binary double: expected: Go numeric; received: %T", datum)
 	}
 	return floatingBinaryEncoder(buf, uint64(math.Float64bits(value)), doubleEncodedLength)
 }
 
-func floatEncoder(buf []byte, datum interface{}) ([]byte, error) {
+func floatBinaryFromNative(buf []byte, datum interface{}) ([]byte, error) {
 	var value float32
 	switch v := datum.(type) {
 	case float32:
@@ -69,22 +69,22 @@ func floatEncoder(buf []byte, datum interface{}) ([]byte, error) {
 	case float64:
 		// Assume runtime can cast special floats correctly
 		if value = float32(v); !math.IsNaN(v) && !math.IsInf(v, 1) && !math.IsInf(v, -1) && float64(value) != v {
-			return buf, fmt.Errorf("float: provided Go double would lose precision: %f", v)
+			return nil, fmt.Errorf("cannot encode binary float: provided Go float64 would lose precision: %f", v)
 		}
 	case int:
 		if value = float32(v); int(value) != v {
-			return buf, fmt.Errorf("double: provided Go int would lose precision: %d", v)
+			return nil, fmt.Errorf("cannot encode binary float: provided Go int would lose precision: %d", v)
 		}
 	case int64:
 		if value = float32(v); int64(value) != v {
-			return buf, fmt.Errorf("double: provided Go int64 would lose precision: %d", v)
+			return nil, fmt.Errorf("cannot encode binary float: provided Go int64 would lose precision: %d", v)
 		}
 	case int32:
 		if value = float32(v); int32(value) != v {
-			return buf, fmt.Errorf("double: provided Go int32 would lose precision: %d", v)
+			return nil, fmt.Errorf("cannot encode binary float: provided Go int32 would lose precision: %d", v)
 		}
 	default:
-		return buf, fmt.Errorf("float: expected: Go numeric; received: %T", datum)
+		return nil, fmt.Errorf("cannot encode binary float: expected: Go numeric; received: %T", datum)
 	}
 	return floatingBinaryEncoder(buf, uint64(math.Float32bits(value)), floatEncodedLength)
 }
@@ -102,11 +102,11 @@ func floatingBinaryEncoder(buf []byte, bits uint64, byteCount int) ([]byte, erro
 // Text Decode
 ////////////////////////////////////////
 
-func doubleTextDecoder(buf []byte) (interface{}, []byte, error) {
+func doubleNativeFromTextual(buf []byte) (interface{}, []byte, error) {
 	return floatingTextDecoder(buf, 64)
 }
 
-func floatTextDecoder(buf []byte) (interface{}, []byte, error) {
+func floatNativeFromTextual(buf []byte) (interface{}, []byte, error) {
 	return floatingTextDecoder(buf, 32)
 }
 
@@ -129,11 +129,11 @@ func floatingTextDecoder(buf []byte, bitSize int) (interface{}, []byte, error) {
 	}
 	index, err := numberLength(buf, true) // NOTE: floatAllowed = true
 	if err != nil {
-		return nil, buf, err
+		return nil, nil, err
 	}
 	datum, err := strconv.ParseFloat(string(buf[:index]), bitSize)
 	if err != nil {
-		return nil, buf, err
+		return nil, nil, err
 	}
 	return datum, buf[index:], nil
 }
@@ -230,11 +230,11 @@ func numberLength(buf []byte, floatAllowed bool) (int, error) {
 // Text Encode
 ////////////////////////////////////////
 
-func floatTextEncoder(buf []byte, datum interface{}) ([]byte, error) {
+func floatTextualFromNative(buf []byte, datum interface{}) ([]byte, error) {
 	return floatingTextEncoder(buf, datum, 32)
 }
 
-func doubleTextEncoder(buf []byte, datum interface{}) ([]byte, error) {
+func doubleTextualFromNative(buf []byte, datum interface{}) ([]byte, error) {
 	return floatingTextEncoder(buf, datum, 64)
 }
 
@@ -252,21 +252,24 @@ func floatingTextEncoder(buf []byte, datum interface{}, bitSize int) ([]byte, er
 	case int:
 		if someInt64 = int64(v); int(someInt64) != v {
 			if bitSize == 64 {
-				return buf, fmt.Errorf("double: provided Go int would lose precision: %d", v)
+				return nil, fmt.Errorf("cannot encode textual double: provided Go int would lose precision: %d", v)
 			}
-			return buf, fmt.Errorf("float: provided Go int would lose precision: %d", v)
+			return nil, fmt.Errorf("cannot encode textual float: provided Go int would lose precision: %d", v)
 		}
 	case int64:
 		someInt64 = v
 	case int32:
 		if someInt64 = int64(v); int32(someInt64) != v {
 			if bitSize == 64 {
-				return buf, fmt.Errorf("double: provided Go int32 would lose precision: %d", v)
+				return nil, fmt.Errorf("cannot encode textual double: provided Go int32 would lose precision: %d", v)
 			}
-			return buf, fmt.Errorf("float: provided Go int32 would lose precision: %d", v)
+			return nil, fmt.Errorf("cannot encode textual float: provided Go int32 would lose precision: %d", v)
 		}
 	default:
-		return buf, fmt.Errorf("float: expected: Go numeric; received: %T", datum)
+		if bitSize == 64 {
+			return nil, fmt.Errorf("cannot encode textual double: expected: Go numeric; received: %T", datum)
+		}
+		return nil, fmt.Errorf("cannot encode textual float: expected: Go numeric; received: %T", datum)
 	}
 
 	if isFloat {

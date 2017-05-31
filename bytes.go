@@ -14,29 +14,29 @@ import (
 // Binary Decode
 ////////////////////////////////////////
 
-func bytesDecoder(buf []byte) (interface{}, []byte, error) {
+func bytesNativeFromBinary(buf []byte) (interface{}, []byte, error) {
 	if len(buf) < 1 {
-		return nil, nil, io.ErrShortBuffer
+		return nil, nil, fmt.Errorf("cannot decode binary bytes: %s", io.ErrShortBuffer)
 	}
 	var decoded interface{}
 	var err error
-	if decoded, buf, err = longDecoder(buf); err != nil {
-		return nil, buf, fmt.Errorf("bytes: %s", err)
+	if decoded, buf, err = longNativeFromBinary(buf); err != nil {
+		return nil, nil, fmt.Errorf("cannot decode binary bytes: %s", err)
 	}
 	size := decoded.(int64) // always returns int64
 	if size < 0 {
-		return nil, buf, fmt.Errorf("bytes: negative size: %d", size)
+		return nil, nil, fmt.Errorf("cannot decode binary bytes: negative size: %d", size)
 	}
 	if size > int64(len(buf)) {
-		return nil, buf, io.ErrShortBuffer
+		return nil, nil, fmt.Errorf("cannot decode binary bytes: %s", io.ErrShortBuffer)
 	}
 	return buf[:size], buf[size:], nil
 }
 
-func stringDecoder(buf []byte) (interface{}, []byte, error) {
-	d, b, err := bytesDecoder(buf)
+func stringNativeFromBinary(buf []byte) (interface{}, []byte, error) {
+	d, b, err := bytesNativeFromBinary(buf)
 	if err != nil {
-		return nil, buf, err
+		return nil, nil, fmt.Errorf("cannot decode binary string: %s", err)
 	}
 	return string(d.([]byte)), b, nil
 }
@@ -45,35 +45,35 @@ func stringDecoder(buf []byte) (interface{}, []byte, error) {
 // Binary Encode
 ////////////////////////////////////////
 
-func bytesEncoder(buf []byte, datum interface{}) ([]byte, error) {
+func bytesBinaryFromNative(buf []byte, datum interface{}) ([]byte, error) {
 	someBytes, ok := datum.([]byte)
 	if !ok {
-		return buf, fmt.Errorf("bytes: expected: []byte; received: %T", datum)
+		return nil, fmt.Errorf("cannot encode binary bytes: expected: []byte; received: %T", datum)
 	}
-	buf, _ = longEncoder(buf, len(someBytes)) // only fails when given non integer
-	return append(buf, someBytes...), nil     // append datum bytes
+	buf, _ = longBinaryFromNative(buf, len(someBytes)) // only fails when given non integer
+	return append(buf, someBytes...), nil              // append datum bytes
 }
 
-func stringEncoder(buf []byte, datum interface{}) ([]byte, error) {
+func stringBinaryFromNative(buf []byte, datum interface{}) ([]byte, error) {
 	someBytes, ok := datum.(string)
 	if !ok {
-		return buf, fmt.Errorf("bytes: expected: string; received: %T", datum)
+		return nil, fmt.Errorf("cannot encode binary bytes: expected: string; received: %T", datum)
 	}
-	buf, _ = longEncoder(buf, len(someBytes)) // only fails when given non integer
-	return append(buf, someBytes...), nil     // append datum bytes
+	buf, _ = longBinaryFromNative(buf, len(someBytes)) // only fails when given non integer
+	return append(buf, someBytes...), nil              // append datum bytes
 }
 
 ////////////////////////////////////////
 // Text Decode
 ////////////////////////////////////////
 
-func bytesTextDecoder(buf []byte) (interface{}, []byte, error) {
+func bytesNativeFromTextual(buf []byte) (interface{}, []byte, error) {
 	buflen := len(buf)
 	if buflen < 2 {
-		return nil, buf, io.ErrShortBuffer
+		return nil, nil, fmt.Errorf("cannot decode textual bytes: %s", io.ErrShortBuffer)
 	}
 	if buf[0] != '"' {
-		return nil, buf, fmt.Errorf("expected initial \"; found: %#U", buf[0])
+		return nil, nil, fmt.Errorf("cannot decode textual bytes: expected initial \"; found: %#U", buf[0])
 	}
 	var newBytes []byte
 	var escaped bool
@@ -93,7 +93,7 @@ func bytesTextDecoder(buf []byte) (interface{}, []byte, error) {
 				// subtract another 1 because already consumed u but have yet to
 				// increment i.
 				if i > buflen-6 {
-					return nil, buf, io.ErrShortBuffer
+					return nil, nil, fmt.Errorf("cannot decode textual bytes: %s", io.ErrShortBuffer)
 				}
 				// NOTE: Avro bytes represent binary data, and do not
 				// necessarily represent text. Therefore, Avro bytes are not
@@ -101,7 +101,7 @@ func bytesTextDecoder(buf []byte) (interface{}, []byte, error) {
 				// digits, the first and second of which must be 0.
 				v, err := parseUint64FromHexSlice(buf[i+3 : i+5])
 				if err != nil {
-					return nil, buf, err
+					return nil, nil, fmt.Errorf("cannot decode textual bytes: %s", err)
 				}
 				i += 4 // absorb 4 characters: one 'u' and three of the digits
 				newBytes = append(newBytes, byte(v))
@@ -119,16 +119,16 @@ func bytesTextDecoder(buf []byte) (interface{}, []byte, error) {
 		}
 		newBytes = append(newBytes, b)
 	}
-	return nil, buf, fmt.Errorf("expected final \"; found: %#U", buf[buflen-1])
+	return nil, nil, fmt.Errorf("cannot decode textual bytes: expected final \"; found: %#U", buf[buflen-1])
 }
 
-func stringTextDecoder(buf []byte) (interface{}, []byte, error) {
+func stringNativeFromTextual(buf []byte) (interface{}, []byte, error) {
 	buflen := len(buf)
 	if buflen < 2 {
-		return nil, buf, io.ErrShortBuffer
+		return nil, nil, fmt.Errorf("cannot decode textual string: %s", io.ErrShortBuffer)
 	}
 	if buf[0] != '"' {
-		return nil, buf, fmt.Errorf("expected initial \"; found: %#U", buf[0])
+		return nil, nil, fmt.Errorf("cannot decode textual string: expected initial \"; found: %#U", buf[0])
 	}
 	var newBytes []byte
 	var escaped bool
@@ -148,11 +148,11 @@ func stringTextDecoder(buf []byte) (interface{}, []byte, error) {
 				// subtract another 1 because already consumed u but have yet to
 				// increment i.
 				if i > buflen-6 {
-					return nil, buf, io.ErrShortBuffer
+					return nil, nil, fmt.Errorf("cannot decode textual string: %s", io.ErrShortBuffer)
 				}
 				v, err := parseUint64FromHexSlice(buf[i+1 : i+5])
 				if err != nil {
-					return nil, buf, err
+					return nil, nil, fmt.Errorf("cannot decode textual string: %s", err)
 				}
 				i += 4 // absorb 4 characters: one 'u' and three of the digits
 
@@ -165,12 +165,12 @@ func stringTextDecoder(buf []byte) (interface{}, []byte, error) {
 
 					// Expect second half of surrogate pair
 					if i > buflen-6 || buf[i] != '\\' || buf[i+1] != 'u' {
-						return nil, buf, errors.New("missing second half of surrogate pair")
+						return nil, nil, errors.New("cannot decode textual string: missing second half of surrogate pair")
 					}
 
 					v, err = parseUint64FromHexSlice(buf[i+2 : i+6])
 					if err != nil {
-						return nil, buf, err
+						return nil, nil, fmt.Errorf("cannot decode textual string: %s", err)
 					}
 					i += 5 // absorb 5 characters: two for '\u', and 3 of the 4 digits
 
@@ -194,7 +194,7 @@ func stringTextDecoder(buf []byte) (interface{}, []byte, error) {
 		}
 		newBytes = append(newBytes, b)
 	}
-	return nil, buf, fmt.Errorf("expected final \"; found: %x", buf[buflen-1])
+	return nil, nil, fmt.Errorf("cannot decode textual string: expected final \"; found: %x", buf[buflen-1])
 }
 
 func parseUint64FromHexSlice(buf []byte) (uint64, error) {
@@ -253,10 +253,10 @@ func unescapeSpecialJSON(b byte) (byte, bool) {
 // Text Encode
 ////////////////////////////////////////
 
-func bytesTextEncoder(buf []byte, datum interface{}) ([]byte, error) {
+func bytesTextualFromNative(buf []byte, datum interface{}) ([]byte, error) {
 	someBytes, ok := datum.([]byte)
 	if !ok {
-		return buf, fmt.Errorf("bytes: expected: []byte; received: %T", datum)
+		return nil, fmt.Errorf("cannot encode textual bytes: expected: []byte; received: %T", datum)
 	}
 	buf = append(buf, '"') // prefix buffer with double quote
 	for _, b := range someBytes {
@@ -277,10 +277,10 @@ func bytesTextEncoder(buf []byte, datum interface{}) ([]byte, error) {
 	return append(buf, '"'), nil // postfix buffer with double quote
 }
 
-func stringTextEncoder(buf []byte, datum interface{}) ([]byte, error) {
+func stringTextualFromNative(buf []byte, datum interface{}) ([]byte, error) {
 	someString, ok := datum.(string)
 	if !ok {
-		return buf, fmt.Errorf("bytes: expected: string; received: %T", datum)
+		return nil, fmt.Errorf("cannot encode textual string: expected: string; received: %T", datum)
 	}
 	buf = append(buf, '"') // prefix buffer with double quote
 	for _, r := range someString {

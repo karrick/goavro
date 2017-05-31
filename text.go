@@ -6,15 +6,15 @@ import (
 	"unicode"
 )
 
-// gobble advances to non whitespace and returns an error if the next non
-// whitespace byte is not what is expected.
-func gobble(buf []byte, expected byte) ([]byte, error) {
+// advanceAndConsume advances to non whitespace and returns an error if the next
+// non whitespace byte is not what is expected.
+func advanceAndConsume(buf []byte, expected byte) ([]byte, error) {
 	var err error
 	if buf, err = advanceToNonWhitespace(buf); err != nil {
 		return nil, err
 	}
 	if actual := buf[0]; actual != expected {
-		return buf, fmt.Errorf("cannot read Record: expected: %q; actual: %q", expected, actual)
+		return nil, fmt.Errorf("expected: %q; actual: %q", expected, actual)
 	}
 	return buf[1:], nil
 }

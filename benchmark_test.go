@@ -34,18 +34,18 @@ func BenchmarkNativeFromBinaryUsingV5(b *testing.B) {
 	benchmarkNativeFromBinaryUsingV5(b, "fixtures/quickstop-null.avro")
 }
 
-func BenchmarkTextFromNativeUsingJSONMarshal(b *testing.B) {
-	benchmarkTextFromNativeUsingJSONMarshal(b, "fixtures/quickstop-null.avro")
+func BenchmarkTextualFromNativeUsingJSONMarshal(b *testing.B) {
+	benchmarkTextualFromNativeUsingJSONMarshal(b, "fixtures/quickstop-null.avro")
 }
 
-func BenchmarkTextFromNativeUsingV5(b *testing.B) {
-	benchmarkTextFromNativeUsingV5(b, "fixtures/quickstop-null.avro")
+func BenchmarkTextualFromNativeUsingV5(b *testing.B) {
+	benchmarkTextualFromNativeUsingV5(b, "fixtures/quickstop-null.avro")
 }
 
-func BenchmarkNativeFromTextUsingJSONUnmarshal(b *testing.B) {
-	benchmarkNativeFromTextUsingJSONUnmarshal(b, "fixtures/quickstop-null.avro")
+func BenchmarkNativeFromTextualUsingJSONUnmarshal(b *testing.B) {
+	benchmarkNativeFromTextualUsingJSONUnmarshal(b, "fixtures/quickstop-null.avro")
 }
 
-func BenchmarkNativeFromTextUsingV5(b *testing.B) {
-	benchmarkNativeFromTextUsingV5(b, "fixtures/quickstop-null.avro")
+func BenchmarkNativeFromTextualUsingV5(b *testing.B) {
+	benchmarkNativeFromTextualUsingV5(b, "fixtures/quickstop-null.avro")
 }

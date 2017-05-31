@@ -247,7 +247,7 @@ func (ocfr *OCFReader) Read() (interface{}, error) {
 
 	// decode one data item from block
 	var datum interface{}
-	datum, ocfr.block, ocfr.err = ocfr.c.BinaryDecode(ocfr.block)
+	datum, ocfr.block, ocfr.err = ocfr.c.NativeFromBinary(ocfr.block)
 	if ocfr.err != nil {
 		return false, ocfr.err
 	}

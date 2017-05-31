@@ -19,13 +19,13 @@ func makeArrayCodec(st map[string]*Codec, enclosingNamespace string, schemaMap m
 
 	return &Codec{
 		typeName: &name{"array", nullNamespace},
-		binaryDecoder: func(buf []byte) (interface{}, []byte, error) {
+		nativeFromBinary: func(buf []byte) (interface{}, []byte, error) {
 			var value interface{}
 			var err error
 
 			// block count and block size
-			if value, buf, err = longDecoder(buf); err != nil {
-				return nil, buf, fmt.Errorf("cannot decode Array block count: %s", err)
+			if value, buf, err = longNativeFromBinary(buf); err != nil {
+				return nil, nil, fmt.Errorf("cannot decode binary array block count: %s", err)
 			}
 			blockCount := value.(int64)
 			if blockCount < 0 {
@@ -34,13 +34,13 @@ func makeArrayCodec(st map[string]*Codec, enclosingNamespace string, schemaMap m
 				// for the block size in this decoder, so we read and discard
 				// the value.
 				blockCount = -blockCount // convert to its positive equivalent
-				if _, buf, err = longDecoder(buf); err != nil {
-					return nil, buf, fmt.Errorf("cannot decode Array block size: %s", err)
+				if _, buf, err = longNativeFromBinary(buf); err != nil {
+					return nil, nil, fmt.Errorf("cannot decode binary array block size: %s", err)
 				}
 			}
 			// Ensure block count does not exceed some sane value.
 			if blockCount > MaxBlockCount {
-				return nil, buf, fmt.Errorf("cannot decode Array when block count exceeds MaxBlockCount: %d > %d", blockCount, MaxBlockCount)
+				return nil, nil, fmt.Errorf("cannot decode binary array when block count exceeds MaxBlockCount: %d > %d", blockCount, MaxBlockCount)
 			}
 			// NOTE: While the attempt of a RAM optimization shown below is not
 			// necessary, many encoders will encode all items in a single block.
@@ -51,14 +51,14 @@ func makeArrayCodec(st map[string]*Codec, enclosingNamespace string, schemaMap m
 			for blockCount != 0 {
 				// Decode `blockCount` datum values from buffer
 				for i := int64(0); i < blockCount; i++ {
-					if value, buf, err = itemCodec.binaryDecoder(buf); err != nil {
-						return nil, buf, fmt.Errorf("cannot decode Array item %d: %s", i+1, err)
+					if value, buf, err = itemCodec.nativeFromBinary(buf); err != nil {
+						return nil, nil, fmt.Errorf("cannot decode binary array item %d: %s", i+1, err)
 					}
 					arrayValues = append(arrayValues, value)
 				}
 				// Decode next blockCount from buffer, because there may be more blocks
-				if value, buf, err = longDecoder(buf); err != nil {
-					return nil, buf, fmt.Errorf("cannot decode Array block count: %s", err)
+				if value, buf, err = longNativeFromBinary(buf); err != nil {
+					return nil, nil, fmt.Errorf("cannot decode binary array block count: %s", err)
 				}
 				blockCount = value.(int64)
 				if blockCount < 0 {
@@ -67,18 +67,18 @@ func makeArrayCodec(st map[string]*Codec, enclosingNamespace string, schemaMap m
 					// have no use for the block size in this decoder, so we
 					// read and discard the value.
 					blockCount = -blockCount // convert to its positive equivalent
-					if _, buf, err = longDecoder(buf); err != nil {
-						return nil, buf, fmt.Errorf("cannot decode Array block size: %s", err)
+					if _, buf, err = longNativeFromBinary(buf); err != nil {
+						return nil, nil, fmt.Errorf("cannot decode binary array block size: %s", err)
 					}
 				}
 				// Ensure block count does not exceed some sane value.
 				if blockCount > MaxBlockCount {
-					return nil, buf, fmt.Errorf("cannot decode Array when block count exceeds MaxBlockCount: %d > %d", blockCount, MaxBlockCount)
+					return nil, nil, fmt.Errorf("cannot decode binary array when block count exceeds MaxBlockCount: %d > %d", blockCount, MaxBlockCount)
 				}
 			}
 			return arrayValues, buf, nil
 		},
-		binaryEncoder: func(buf []byte, datum interface{}) ([]byte, error) {
+		binaryFromNative: func(buf []byte, datum interface{}) ([]byte, error) {
 			var arrayValues []interface{}
 			switch i := datum.(type) {
 			case []interface{}:
@@ -88,7 +88,7 @@ func makeArrayCodec(st map[string]*Codec, enclosingNamespace string, schemaMap m
 				// items as a convenience to client.
 				v := reflect.ValueOf(datum)
 				if v.Kind() != reflect.Slice {
-					return buf, fmt.Errorf("Array: expected []interface{}; received: %T", datum)
+					return nil, fmt.Errorf("cannot encode binary array: expected []interface{}; received: %T", datum)
 				}
 				// NOTE: Two better alternatives to the current algorithm are:
 				//   (1) mutate the reflection tuple underneath to convert the
@@ -112,30 +112,30 @@ func makeArrayCodec(st map[string]*Codec, enclosingNamespace string, schemaMap m
 						// limit block count to MacBlockCount
 						remainingInBlock = MaxBlockCount
 					}
-					buf, _ = longEncoder(buf, remainingInBlock)
+					buf, _ = longBinaryFromNative(buf, remainingInBlock)
 				}
 
-				if buf, err = itemCodec.binaryEncoder(buf, item); err != nil {
-					return buf, fmt.Errorf("cannot encode Array item %d; %v: %s", i+1, item, err)
+				if buf, err = itemCodec.binaryFromNative(buf, item); err != nil {
+					return nil, fmt.Errorf("cannot encode binary array item %d: %v: %s", i+1, item, err)
 				}
 
 				remainingInBlock--
 				alreadyEncoded++
 			}
 
-			return longEncoder(buf, 0) // append trailing 0 block count to signal end of Array
+			return longBinaryFromNative(buf, 0) // append trailing 0 block count to signal end of Array
 		},
-		textDecoder: func(buf []byte) (interface{}, []byte, error) {
+		nativeFromTextual: func(buf []byte) (interface{}, []byte, error) {
 			var arrayValues []interface{}
 			var value interface{}
 			var err error
 			var b byte
 
-			if buf, err = gobble(buf, '['); err != nil {
-				return nil, buf, err
+			if buf, err = advanceAndConsume(buf, '['); err != nil {
+				return nil, nil, fmt.Errorf("cannot decode textual array: %s", err)
 			}
 			if buf, _ = advanceToNonWhitespace(buf); len(buf) == 0 {
-				return nil, buf, io.ErrShortBuffer
+				return nil, nil, fmt.Errorf("cannot decode textual array: %s", io.ErrShortBuffer)
 			}
 			// NOTE: Special case for empty array
 			if buf[0] == ']' {
@@ -145,14 +145,14 @@ func makeArrayCodec(st map[string]*Codec, enclosingNamespace string, schemaMap m
 			// NOTE: Also terminates when read ']' byte.
 			for len(buf) > 0 {
 				// decode value
-				value, buf, err = itemCodec.textDecoder(buf)
+				value, buf, err = itemCodec.nativeFromTextual(buf)
 				if err != nil {
-					return nil, buf, err
+					return nil, nil, fmt.Errorf("cannot decode textual array: %s", err)
 				}
 				arrayValues = append(arrayValues, value)
 				// either comma or closing curly brace
 				if buf, _ = advanceToNonWhitespace(buf); len(buf) == 0 {
-					return nil, buf, io.ErrShortBuffer
+					return nil, nil, fmt.Errorf("cannot decode textual array: %s", io.ErrShortBuffer)
 				}
 				switch b = buf[0]; b {
 				case ']':
@@ -160,19 +160,19 @@ func makeArrayCodec(st map[string]*Codec, enclosingNamespace string, schemaMap m
 				case ',':
 					// no-op
 				default:
-					return nil, buf, fmt.Errorf("cannot decode Array: expected ',' or ']'; received: %q", b)
+					return nil, nil, fmt.Errorf("cannot decode textual array: expected ',' or ']'; received: %q", b)
 				}
 				// NOTE: consume comma from above
 				if buf, _ = advanceToNonWhitespace(buf[1:]); len(buf) == 0 {
-					return nil, buf, io.ErrShortBuffer
+					return nil, nil, fmt.Errorf("cannot decode textual array: %s", io.ErrShortBuffer)
 				}
 			}
 			return nil, buf, io.ErrShortBuffer
 		},
-		textEncoder: func(buf []byte, datum interface{}) ([]byte, error) {
+		textualFromNative: func(buf []byte, datum interface{}) ([]byte, error) {
 			arrayValues, ok := datum.([]interface{})
 			if !ok {
-				return buf, fmt.Errorf("Array ought to be []interface{}; received: %T", datum)
+				return nil, fmt.Errorf("cannot encode textual array: expected []interface{}; received: %T", datum)
 			}
 
 			var err error
@@ -184,10 +184,10 @@ func makeArrayCodec(st map[string]*Codec, enclosingNamespace string, schemaMap m
 				atLeastOne = true
 
 				// Encode value
-				buf, err = itemCodec.textEncoder(buf, item)
+				buf, err = itemCodec.textualFromNative(buf, item)
 				if err != nil {
 					// field was specified in datum; therefore its value was invalid
-					return buf, fmt.Errorf("cannot encode Array item %d; %v: %s", i+1, item, err)
+					return nil, fmt.Errorf("cannot encode textual array item %d; %v: %s", i+1, item, err)
 				}
 				buf = append(buf, ',')
 			}

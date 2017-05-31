@@ -19,13 +19,13 @@ func makeMapCodec(st map[string]*Codec, namespace string, schemaMap map[string]i
 
 	return &Codec{
 		typeName: &name{"map", nullNamespace},
-		binaryDecoder: func(buf []byte) (interface{}, []byte, error) {
+		nativeFromBinary: func(buf []byte) (interface{}, []byte, error) {
 			var err error
 			var value interface{}
 
 			// block count and block size
-			if value, buf, err = longDecoder(buf); err != nil {
-				return nil, buf, fmt.Errorf("cannot decode Map block count: %s", err)
+			if value, buf, err = longNativeFromBinary(buf); err != nil {
+				return nil, nil, fmt.Errorf("cannot decode binary map block count: %s", err)
 			}
 			blockCount := value.(int64)
 			if blockCount < 0 {
@@ -34,13 +34,13 @@ func makeMapCodec(st map[string]*Codec, namespace string, schemaMap map[string]i
 				// for the block size in this decoder, so we read and discard
 				// the value.
 				blockCount = -blockCount // convert to its positive equivalent
-				if _, buf, err = longDecoder(buf); err != nil {
-					return nil, buf, fmt.Errorf("cannot decode Map block size: %s", err)
+				if _, buf, err = longNativeFromBinary(buf); err != nil {
+					return nil, nil, fmt.Errorf("cannot decode binary map block size: %s", err)
 				}
 			}
 			// Ensure block count does not exceed some sane value.
 			if blockCount > MaxBlockCount {
-				return nil, buf, fmt.Errorf("cannot decode Map when block count exceeds MaxBlockCount: %d > %d", blockCount, MaxBlockCount)
+				return nil, nil, fmt.Errorf("cannot decode binary map when block count exceeds MaxBlockCount: %d > %d", blockCount, MaxBlockCount)
 			}
 			// NOTE: While the attempt of a RAM optimization shown below is not
 			// necessary, many encoders will encode all items in a single block.
@@ -52,22 +52,22 @@ func makeMapCodec(st map[string]*Codec, namespace string, schemaMap map[string]i
 				// Decode `blockCount` datum values from buffer
 				for i := int64(0); i < blockCount; i++ {
 					// first decode the key string
-					if value, buf, err = stringDecoder(buf); err != nil {
-						return nil, buf, fmt.Errorf("cannot decode Map key: %s", err)
+					if value, buf, err = stringNativeFromBinary(buf); err != nil {
+						return nil, nil, fmt.Errorf("cannot decode binary map key: %s", err)
 					}
 					key := value.(string) // string decoder always returns a string
 					if _, ok := mapValues[key]; ok {
-						return nil, buf, fmt.Errorf("cannot decode Map: duplicate key: %q", key)
+						return nil, nil, fmt.Errorf("cannot decode binary map: duplicate key: %q", key)
 					}
 					// then decode the value
-					if value, buf, err = valueCodec.binaryDecoder(buf); err != nil {
-						return nil, buf, fmt.Errorf("cannot decode Map value for key %q: %s", key, err)
+					if value, buf, err = valueCodec.nativeFromBinary(buf); err != nil {
+						return nil, nil, fmt.Errorf("cannot decode binary map key %q value: %s", key, err)
 					}
 					mapValues[key] = value
 				}
 				// Decode next blockCount from buffer, because there may be more blocks
-				if value, buf, err = longDecoder(buf); err != nil {
-					return nil, buf, fmt.Errorf("cannot decode Map block count: %s", err)
+				if value, buf, err = longNativeFromBinary(buf); err != nil {
+					return nil, nil, fmt.Errorf("cannot decode binary map block count: %s", err)
 				}
 				blockCount = value.(int64)
 				if blockCount < 0 {
@@ -76,21 +76,21 @@ func makeMapCodec(st map[string]*Codec, namespace string, schemaMap map[string]i
 					// have no use for the block size in this decoder, so we
 					// read and discard the value.
 					blockCount = -blockCount // convert to its positive equivalent
-					if _, buf, err = longDecoder(buf); err != nil {
-						return nil, buf, fmt.Errorf("cannot decode Map block size: %s", err)
+					if _, buf, err = longNativeFromBinary(buf); err != nil {
+						return nil, nil, fmt.Errorf("cannot decode binary map block size: %s", err)
 					}
 				}
 				// Ensure block count does not exceed some sane value.
 				if blockCount > MaxBlockCount {
-					return nil, buf, fmt.Errorf("cannot decode Map when block count exceeds MaxBlockCount: %d > %d", blockCount, MaxBlockCount)
+					return nil, nil, fmt.Errorf("cannot decode binary map when block count exceeds MaxBlockCount: %d > %d", blockCount, MaxBlockCount)
 				}
 			}
 			return mapValues, buf, nil
 		},
-		binaryEncoder: func(buf []byte, datum interface{}) ([]byte, error) {
+		binaryFromNative: func(buf []byte, datum interface{}) ([]byte, error) {
 			mapValues, ok := datum.(map[string]interface{})
 			if !ok {
-				return buf, fmt.Errorf("cannot encode Map: expected: map[string]interface{}; received: %T", datum)
+				return nil, fmt.Errorf("cannot encode binary map: expected: map[string]interface{}; received: %T", datum)
 			}
 
 			keyCount := int64(len(mapValues))
@@ -103,31 +103,37 @@ func makeMapCodec(st map[string]*Codec, namespace string, schemaMap map[string]i
 						// limit block count to MacBlockCount
 						remainingInBlock = MaxBlockCount
 					}
-					buf, _ = longEncoder(buf, remainingInBlock)
+					buf, _ = longBinaryFromNative(buf, remainingInBlock)
 				}
 
 				// only fails when given non string, so elide error checking
-				buf, _ = stringEncoder(buf, k)
+				buf, _ = stringBinaryFromNative(buf, k)
 
 				// encode the value
-				if buf, err = valueCodec.binaryEncoder(buf, v); err != nil {
-					return buf, fmt.Errorf("cannot encode Map value for key %q: %v: %s", k, v, err)
+				if buf, err = valueCodec.binaryFromNative(buf, v); err != nil {
+					return nil, fmt.Errorf("cannot encode binary map value for key %q: %v: %s", k, v, err)
 				}
 
 				remainingInBlock--
 				alreadyEncoded++
 			}
-			return longEncoder(buf, 0) // append tailing 0 block count to signal end of Map
+			return longBinaryFromNative(buf, 0) // append tailing 0 block count to signal end of Map
 		},
-		textDecoder: func(buf []byte) (interface{}, []byte, error) {
+		nativeFromTextual: func(buf []byte) (interface{}, []byte, error) {
 			return genericMapTextDecoder(buf, valueCodec, nil) // codecFromKey == nil
 		},
-		textEncoder: func(buf []byte, datum interface{}) ([]byte, error) {
+		textualFromNative: func(buf []byte, datum interface{}) ([]byte, error) {
 			return genericMapTextEncoder(buf, datum, valueCodec, nil)
 		},
 	}, nil
 }
 
+// genericMapTextDecoder decodes a JSON text blob to a native Go map, using the
+// codecs from codecFromKey, and if a key is not found in that map, from
+// defaultCodec if provided. If defaultCodec is nil, this function returns an
+// error if it encounters a map key that is not present in codecFromKey. If
+// codecFromKey is nil, every map value will be decoded using defaultCodec, if
+// possible.
 func genericMapTextDecoder(buf []byte, defaultCodec *Codec, codecFromKey map[string]*Codec) (map[string]interface{}, []byte, error) {
 	var value interface{}
 	var err error
@@ -136,11 +142,11 @@ func genericMapTextDecoder(buf []byte, defaultCodec *Codec, codecFromKey map[str
 	lencodec := len(codecFromKey)
 	mapValues := make(map[string]interface{}, lencodec)
 
-	if buf, err = gobble(buf, '{'); err != nil {
-		return nil, buf, err
+	if buf, err = advanceAndConsume(buf, '{'); err != nil {
+		return nil, nil, err
 	}
 	if buf, _ = advanceToNonWhitespace(buf); len(buf) == 0 {
-		return nil, buf, io.ErrShortBuffer
+		return nil, nil, io.ErrShortBuffer
 	}
 	// NOTE: Special case empty map
 	if buf[0] == '}' {
@@ -150,14 +156,14 @@ func genericMapTextDecoder(buf []byte, defaultCodec *Codec, codecFromKey map[str
 	// NOTE: Also terminates when read '}' byte.
 	for len(buf) > 0 {
 		// decode key string
-		value, buf, err = stringTextDecoder(buf)
+		value, buf, err = stringNativeFromTextual(buf)
 		if err != nil {
-			return nil, buf, fmt.Errorf("cannot decode Map: expected key: %s", err)
+			return nil, nil, fmt.Errorf("cannot decode textual map: expected key: %s", err)
 		}
 		key := value.(string)
 		// Is key already used?
 		if _, ok := mapValues[key]; ok {
-			return nil, buf, fmt.Errorf("cannot decode Map: duplicate key: %q", key)
+			return nil, nil, fmt.Errorf("cannot decode textual map: duplicate key: %q", key)
 		}
 		// Find a codec for the key
 		fieldCodec := codecFromKey[key]
@@ -165,25 +171,25 @@ func genericMapTextDecoder(buf []byte, defaultCodec *Codec, codecFromKey map[str
 			fieldCodec = defaultCodec
 		}
 		if fieldCodec == nil {
-			return nil, buf, fmt.Errorf("cannot decode Map: cannot determine codec: %q", key)
+			return nil, nil, fmt.Errorf("cannot decode textual map: cannot determine codec: %q", key)
 		}
 		// decode colon
-		if buf, err = gobble(buf, ':'); err != nil {
-			return nil, buf, err
+		if buf, err = advanceAndConsume(buf, ':'); err != nil {
+			return nil, nil, err
 		}
 		// decode value
 		if buf, _ = advanceToNonWhitespace(buf); len(buf) == 0 {
-			return nil, buf, io.ErrShortBuffer
+			return nil, nil, io.ErrShortBuffer
 		}
-		value, buf, err = fieldCodec.textDecoder(buf)
+		value, buf, err = fieldCodec.nativeFromTextual(buf)
 		if err != nil {
-			return nil, buf, err
+			return nil, nil, err
 		}
 		// set map value for key
 		mapValues[key] = value
 		// either comma or closing curly brace
 		if buf, _ = advanceToNonWhitespace(buf); len(buf) == 0 {
-			return nil, buf, io.ErrShortBuffer
+			return nil, nil, io.ErrShortBuffer
 		}
 		switch b = buf[0]; b {
 		case '}':
@@ -191,20 +197,26 @@ func genericMapTextDecoder(buf []byte, defaultCodec *Codec, codecFromKey map[str
 		case ',':
 			// no-op
 		default:
-			return nil, buf, fmt.Errorf("cannot decode Map: expected ',' or '}'; received: %q", b)
+			return nil, nil, fmt.Errorf("cannot decode textual map: expected ',' or '}'; received: %q", b)
 		}
 		// NOTE: consume comma from above
 		if buf, _ = advanceToNonWhitespace(buf[1:]); len(buf) == 0 {
-			return nil, buf, io.ErrShortBuffer
+			return nil, nil, io.ErrShortBuffer
 		}
 	}
-	return nil, buf, io.ErrShortBuffer
+	return nil, nil, io.ErrShortBuffer
 }
 
+// genericMapTextEncoder encodes a native Go map to a JSON text blob, using the
+// codecs from codecFromKey, and if a key is not found in that map, from
+// defaultCodec if provided. If defaultCodec is nil, this function returns an
+// error if it encounters a map key that is not present in codecFromKey. If
+// codecFromKey is nil, every map value will be encoded using defaultCodec, if
+// possible.
 func genericMapTextEncoder(buf []byte, datum interface{}, defaultCodec *Codec, codecFromKey map[string]*Codec) ([]byte, error) {
 	valueMap, ok := datum.(map[string]interface{})
 	if !ok {
-		return buf, fmt.Errorf("Map ought to be map[string]interface{}; received: %T", datum)
+		return nil, fmt.Errorf("cannot encode textual map: expected map[string]interface{}; received: %T", datum)
 	}
 
 	var err error
@@ -221,19 +233,19 @@ func genericMapTextEncoder(buf []byte, datum interface{}, defaultCodec *Codec, c
 			fieldCodec = defaultCodec
 		}
 		if fieldCodec == nil {
-			return buf, fmt.Errorf("cannot encode Map: cannot determine codec: %q", key)
+			return nil, fmt.Errorf("cannot encode textual map: cannot determine codec: %q", key)
 		}
 		// Encode key string
-		buf, err = stringTextEncoder(buf, key)
+		buf, err = stringTextualFromNative(buf, key)
 		if err != nil {
-			return buf, err
+			return nil, err
 		}
 		buf = append(buf, ':')
 		// Encode value
-		buf, err = fieldCodec.textEncoder(buf, value)
+		buf, err = fieldCodec.textualFromNative(buf, value)
 		if err != nil {
 			// field was specified in datum; therefore its value was invalid
-			return buf, fmt.Errorf("Map value for %q does not match its schema: %s", key, err)
+			return nil, fmt.Errorf("cannot encode textual map: value for %q does not match its schema: %s", key, err)
 		}
 		buf = append(buf, ',')
 	}

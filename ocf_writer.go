@@ -83,7 +83,7 @@ func NewOCFWriter(config OCFWriterConfig) (*OCFWriter, error) {
 
 	// file metadata, including the schema
 	hm := map[string]interface{}{"avro.schema": []byte(avroSchema), "avro.codec": []byte(avroCodec)}
-	buf, err = metadataCodec.BinaryEncode(buf, hm)
+	buf, err = metadataCodec.BinaryFromNative(buf, hm)
 	if err != nil {
 		return nil, err
 	}
@@ -133,7 +133,7 @@ func (ocf *OCFWriter) appendDataIntoBlock(data []interface{}) error {
 
 	// Encode and concatenate each data item into the block
 	for _, datum := range data {
-		if block, err = ocf.codec.BinaryEncode(block, datum); err != nil {
+		if block, err = ocf.codec.BinaryFromNative(block, datum); err != nil {
 			return err
 		}
 	}
@@ -170,10 +170,10 @@ func (ocf *OCFWriter) appendDataIntoBlock(data []interface{}) error {
 	}
 
 	// create file data block
-	buf, _ := longEncoder(nil, len(data)) // block count (number of data items)
-	buf, _ = longEncoder(buf, len(block)) // block size (number of bytes in block)
-	buf = append(buf, block...)           // serialized objects
-	buf = append(buf, ocf.syncMarker...)  // sync marker
+	buf, _ := longBinaryFromNative(nil, len(data)) // block count (number of data items)
+	buf, _ = longBinaryFromNative(buf, len(block)) // block size (number of bytes in block)
+	buf = append(buf, block...)                    // serialized objects
+	buf = append(buf, ocf.syncMarker...)           // sync marker
 
 	_, err = ocf.iow.Write(buf)
 	return err

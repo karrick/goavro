@@ -30,13 +30,13 @@ func TestEnumSymbolInvalid(t *testing.T) {
 
 func TestEnumDecodeError(t *testing.T) {
 	testBinaryDecodeFail(t, `{"type":"enum","name":"e1","symbols":["alpha","bravo"]}`, nil, "short buffer")
-	testBinaryDecodeFail(t, `{"type":"enum","name":"e1","symbols":["alpha","bravo"]}`, []byte("\x01"), `cannot decode Enum "e1": index ought to be between 0 and 1`)
-	testBinaryDecodeFail(t, `{"type":"enum","name":"e1","symbols":["alpha","bravo"]}`, []byte("\x04"), `cannot decode Enum "e1": index ought to be between 0 and 1`)
+	testBinaryDecodeFail(t, `{"type":"enum","name":"e1","symbols":["alpha","bravo"]}`, []byte("\x01"), `cannot decode binary enum "e1": index ought to be between 0 and 1`)
+	testBinaryDecodeFail(t, `{"type":"enum","name":"e1","symbols":["alpha","bravo"]}`, []byte("\x04"), `cannot decode binary enum "e1": index ought to be between 0 and 1`)
 }
 
 func TestEnumEncodeError(t *testing.T) {
-	testBinaryEncodeFail(t, `{"type":"enum","name":"e1","symbols":["alpha","bravo"]}`, 13, `cannot encode Enum "e1": expected string; received: int`)
-	testBinaryEncodeFail(t, `{"type":"enum","name":"e1","symbols":["alpha","bravo"]}`, "charlie", `cannot encode Enum "e1": value ought to be member of symbols`)
+	testBinaryEncodeFail(t, `{"type":"enum","name":"e1","symbols":["alpha","bravo"]}`, 13, `cannot encode binary enum "e1": expected string; received: int`)
+	testBinaryEncodeFail(t, `{"type":"enum","name":"e1","symbols":["alpha","bravo"]}`, "charlie", `cannot encode binary enum "e1": value ought to be member of symbols`)
 }
 
 func TestEnumEncode(t *testing.T) {
@@ -47,6 +47,6 @@ func TestEnumEncode(t *testing.T) {
 func TestEnumTextCodec(t *testing.T) {
 	testTextCodecPass(t, `{"type":"enum","name":"e1","symbols":["alpha","bravo"]}`, "alpha", []byte(`"alpha"`))
 	testTextCodecPass(t, `{"type":"enum","name":"e1","symbols":["alpha","bravo"]}`, "bravo", []byte(`"bravo"`))
-	testTextEncodeFail(t, `{"type":"enum","name":"e1","symbols":["alpha","bravo"]}`, "charlie", `cannot encode Enum "e1": value ought to be member of symbols`)
-	testTextDecodeFail(t, `{"type":"enum","name":"e1","symbols":["alpha","bravo"]}`, []byte(`"charlie"`), `cannot decode Enum "e1": value ought to be member of symbols`)
+	testTextEncodeFail(t, `{"type":"enum","name":"e1","symbols":["alpha","bravo"]}`, "charlie", `cannot encode textual enum "e1": value ought to be member of symbols`)
+	testTextDecodeFail(t, `{"type":"enum","name":"e1","symbols":["alpha","bravo"]}`, []byte(`"charlie"`), `cannot decode textual enum "e1": value ought to be member of symbols`)
 }

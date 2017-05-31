@@ -22,7 +22,7 @@ func buildCodecForTypeDescribedBySlice(st map[string]*Codec, enclosingNamespace 
 
 	allowedTypes := make([]string, len(schemaArray)) // used for error reporting when encoder receives invalid datum type
 	codecFromIndex := make([]*Codec, len(schemaArray))
-	codecFromKey := make(map[string]*Codec, len(schemaArray))
+	codecFromName := make(map[string]*Codec, len(schemaArray))
 	indexFromName := make(map[string]int, len(schemaArray))
 
 	for i, unionMemberSchema := range schemaArray {
@@ -34,62 +34,68 @@ func buildCodecForTypeDescribedBySlice(st map[string]*Codec, enclosingNamespace 
 		if _, ok := indexFromName[fullName]; ok {
 			return nil, fmt.Errorf("Union item %d ought to be unique type: %s", i+1, unionMemberCodec.typeName)
 		}
-		indexFromName[fullName] = i
 		allowedTypes[i] = fullName
 		codecFromIndex[i] = unionMemberCodec
-		codecFromKey[fullName] = unionMemberCodec
+		codecFromName[fullName] = unionMemberCodec
+		indexFromName[fullName] = i
 	}
 
 	return &Codec{
+		// NOTE: To support record field default values, union schema set to the
+		// type name of first member
+		schema: codecFromIndex[0].typeName.short(),
+
 		typeName: &name{"union", nullNamespace},
-		binaryDecoder: func(buf []byte) (interface{}, []byte, error) {
+		nativeFromBinary: func(buf []byte) (interface{}, []byte, error) {
 			var decoded interface{}
 			var err error
 
-			decoded, buf, err = longDecoder(buf)
+			decoded, buf, err = longNativeFromBinary(buf)
 			if err != nil {
-				return nil, buf, err
+				return nil, nil, err
 			}
 			index := decoded.(int64) // longDecoder always returns int64, so elide error checking
 			if index < 0 || index >= int64(len(codecFromIndex)) {
-				return nil, buf, fmt.Errorf("cannot decode Union: index ought to be between 0 and %d; read index: %d", len(codecFromIndex)-1, index)
+				return nil, nil, fmt.Errorf("cannot decode binary union: index ought to be between 0 and %d; read index: %d", len(codecFromIndex)-1, index)
 			}
 			c := codecFromIndex[index]
-			decoded, buf, err = c.binaryDecoder(buf)
+			decoded, buf, err = c.nativeFromBinary(buf)
 			if err != nil {
-				return nil, buf, fmt.Errorf("cannot decode Union item %d: %s", index+1, err)
+				return nil, nil, fmt.Errorf("cannot decode binary union item %d: %s", index+1, err)
 			}
 			if decoded == nil {
+				// do not wrap a nil value in a map
 				return nil, buf, nil
 			}
-			return map[string]interface{}{allowedTypes[index]: decoded}, buf, nil
+			// Non-nil values are wrapped in a map with single key set to type name of value
+			return Union(allowedTypes[index], decoded), buf, nil
 		},
-		binaryEncoder: func(buf []byte, datum interface{}) ([]byte, error) {
+		binaryFromNative: func(buf []byte, datum interface{}) ([]byte, error) {
 			switch v := datum.(type) {
 			case nil:
 				index, ok := indexFromName["null"]
 				if !ok {
-					return buf, fmt.Errorf("cannot encode Union: no member schema types support datum: allowed types: %v; received: %T", allowedTypes, datum)
+					return nil, fmt.Errorf("cannot encode binary union: no member schema types support datum: allowed types: %v; received: %T", allowedTypes, datum)
 				}
-				return longEncoder(buf, index)
+				return longBinaryFromNative(buf, index)
 			case map[string]interface{}:
 				if len(v) != 1 {
-					return buf, fmt.Errorf("cannot encode Union: non-nil values ought to be specified with Go map[string]interface{}, with single key equal to type name, and value equal to datum value: %v; received: %T", allowedTypes, datum)
+					return nil, fmt.Errorf("cannot encode binary union: non-nil Union values ought to be specified with Go map[string]interface{}, with single key equal to type name, and value equal to datum value: %v; received: %T", allowedTypes, datum)
 				}
 				// will execute exactly once
 				for key, value := range v {
 					index, ok := indexFromName[key]
 					if !ok {
-						return buf, fmt.Errorf("cannot encode Union: no member schema types support datum: allowed types: %v; received: %T", allowedTypes, datum)
+						return nil, fmt.Errorf("cannot encode binary union: no member schema types support datum: allowed types: %v; received: %T", allowedTypes, datum)
 					}
 					c := codecFromIndex[index]
-					buf, _ = longEncoder(buf, index)
-					return c.binaryEncoder(buf, value)
+					buf, _ = longBinaryFromNative(buf, index)
+					return c.binaryFromNative(buf, value)
 				}
 			}
-			return buf, fmt.Errorf("cannot encode Union: non-nil values ought to be specified with Go map[string]interface{}, with single key equal to type name, and value equal to datum value: %v; received: %T", allowedTypes, datum)
+			return nil, fmt.Errorf("cannot encode binary union: non-nil Union values ought to be specified with Go map[string]interface{}, with single key equal to type name, and value equal to datum value: %v; received: %T", allowedTypes, datum)
 		},
-		textDecoder: func(buf []byte) (interface{}, []byte, error) {
+		nativeFromTextual: func(buf []byte) (interface{}, []byte, error) {
 			if len(buf) >= 4 && bytes.Equal(buf[:4], []byte("null")) {
 				if _, ok := indexFromName["null"]; ok {
 					return nil, buf[4:], nil
@@ -98,47 +104,47 @@ func buildCodecForTypeDescribedBySlice(st map[string]*Codec, enclosingNamespace 
 
 			var datum interface{}
 			var err error
-			datum, buf, err = genericMapTextDecoder(buf, nil, codecFromKey)
+			datum, buf, err = genericMapTextDecoder(buf, nil, codecFromName)
 			if err != nil {
-				return nil, buf, err
+				return nil, nil, fmt.Errorf("cannot decode textual union: %s", err)
 			}
 
 			return datum, buf, nil
 		},
-		textEncoder: func(buf []byte, datum interface{}) ([]byte, error) {
+		textualFromNative: func(buf []byte, datum interface{}) ([]byte, error) {
 			switch v := datum.(type) {
 			case nil:
 				_, ok := indexFromName["null"]
 				if !ok {
-					return buf, fmt.Errorf("cannot encode Union: no member schema types support datum: allowed types: %v; received: %T", allowedTypes, datum)
+					return nil, fmt.Errorf("cannot encode textual union: no member schema types support datum: allowed types: %v; received: %T", allowedTypes, datum)
 				}
 				return append(buf, "null"...), nil
 			case map[string]interface{}:
 				if len(v) != 1 {
-					return buf, fmt.Errorf("cannot encode Union: non-nil values ought to be specified with Go map[string]interface{}, with single key equal to type name, and value equal to datum value: %v; received: %T", allowedTypes, datum)
+					return nil, fmt.Errorf("cannot encode textual union: non-nil Union values ought to be specified with Go map[string]interface{}, with single key equal to type name, and value equal to datum value: %v; received: %T", allowedTypes, datum)
 				}
 				// will execute exactly once
 				for key, value := range v {
 					index, ok := indexFromName[key]
 					if !ok {
-						return buf, fmt.Errorf("cannot encode Union: no member schema types support datum: allowed types: %v; received: %T", allowedTypes, datum)
+						return nil, fmt.Errorf("cannot encode textual union: no member schema types support datum: allowed types: %v; received: %T", allowedTypes, datum)
 					}
 					buf = append(buf, '{')
 					var err error
-					buf, err = stringTextEncoder(buf, key)
+					buf, err = stringTextualFromNative(buf, key)
 					if err != nil {
-						return buf, err
+						return nil, fmt.Errorf("cannot encode textual union: %s", err)
 					}
 					buf = append(buf, ':')
 					c := codecFromIndex[index]
-					buf, err = c.textEncoder(buf, value)
+					buf, err = c.textualFromNative(buf, value)
 					if err != nil {
-						return buf, err
+						return nil, fmt.Errorf("cannot encode textual union: %s", err)
 					}
 					return append(buf, '}'), nil
 				}
 			}
-			return buf, fmt.Errorf("cannot encode Union: non-nil values ought to be specified with Go map[string]interface{}, with single key equal to type name, and value equal to datum value: %v; received: %T", allowedTypes, datum)
+			return nil, fmt.Errorf("cannot encode textual union: non-nil values ought to be specified with Go map[string]interface{}, with single key equal to type name, and value equal to datum value: %v; received: %T", allowedTypes, datum)
 		},
 	}, nil
 }

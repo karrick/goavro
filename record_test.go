@@ -110,7 +110,7 @@ func TestRecordFieldTypeHasPrimitiveName(t *testing.T) {
 		"f2": 13,
 	}
 
-	buf, err := codec.BinaryEncode(nil, datumIn)
+	buf, err := codec.BinaryFromNative(nil, datumIn)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -123,7 +123,7 @@ func TestRecordFieldTypeHasPrimitiveName(t *testing.T) {
 	}
 
 	// round trip
-	datumOut, buf, err := codec.BinaryDecode(buf)
+	datumOut, buf, err := codec.NativeFromBinary(buf)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -325,7 +325,7 @@ func TestRecordNamespace(t *testing.T) {
 		"Z": []byte("efgh"),
 	}
 
-	buf, err := c.BinaryEncode(nil, datumIn)
+	buf, err := c.BinaryFromNative(nil, datumIn)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -334,7 +334,7 @@ func TestRecordNamespace(t *testing.T) {
 	}
 
 	// round trip
-	datumOut, buf, err := c.BinaryDecode(buf)
+	datumOut, buf, err := c.NativeFromBinary(buf)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -365,8 +365,8 @@ func TestRecordEncodeFail(t *testing.T) {
   ]
 }`
 
-	testBinaryEncodeFail(t, schema, map[string]interface{}{"f1": "foo"}, `field value for "f2" was not specified`)
-	testBinaryEncodeFail(t, schema, map[string]interface{}{"f1": "foo", "f2": 13}, `field value for "f2" does not match its schema`)
+	testBinaryEncodeFail(t, schema, map[string]interface{}{"f1": "foo"}, `field "f2": schema does not specify default value and no value provided`)
+	testBinaryEncodeFail(t, schema, map[string]interface{}{"f1": "foo", "f2": 13}, `field "f2": value does not match its schema`)
 }
 
 func TestRecordTextDecodeFail(t *testing.T) {
@@ -387,4 +387,242 @@ func TestRecordTextCodecPass(t *testing.T) {
 	testTextEncodePass(t, `{"name":"r1","type":"record","fields":[{"name":"string","type":"string"}]}`, map[string]interface{}{"string": silly}, []byte(`{"string":"\u0001\u2318 "}`))
 	testTextEncodePass(t, `{"name":"r1","type":"record","fields":[{"name":"bytes","type":"bytes"}]}`, map[string]interface{}{"bytes": []byte(silly)}, []byte(`{"bytes":"\u0001\u00E2\u008C\u0098 "}`))
 	testTextDecodePass(t, `{"name":"r1","type":"record","fields":[{"name":"string","type":"string"},{"name":"bytes","type":"bytes"}]}`, map[string]interface{}{"string": silly, "bytes": []byte(silly)}, []byte(` { "string" : "\u0001\u2318 " , "bytes" : "\u0001\u00E2\u008C\u0098 " }`))
+}
+
+func TestRecordFieldDefaultValue(t *testing.T) {
+	testSchemaValid(t, `{"type":"record","name":"r1","fields":[{"name":"f1","type":"int","default":13}]}`)
+	testSchemaValid(t, `{"type":"record","name":"r1","fields":[{"name":"f1","type":"string","default":"foo"}]}`)
+	testSchemaInvalid(t,
+		`{"type":"record","name":"r1","fields":[{"name":"f1","type":"int","default":"foo"}]}`,
+		"default value ought to encode using field schema")
+}
+
+func TestRecordFieldUnionDefaultValue(t *testing.T) {
+	testSchemaValid(t, `{"type":"record","name":"r1","fields":[{"name":"f1","type":["int","null"],"default":13}]}`)
+	testSchemaValid(t, `{"type":"record","name":"r1","fields":[{"name":"f1","type":["null","int"],"default":null}]}`)
+}
+
+func TestRecordFieldUnionInvalidDefaultValue(t *testing.T) {
+	testSchemaInvalid(t,
+		`{"type":"record","name":"r1","fields":[{"name":"f1","type":["null","int"],"default":13}]}`,
+		"default value ought to encode using field schema")
+	testSchemaInvalid(t,
+		`{"type":"record","name":"r1","fields":[{"name":"f1","type":["int","null"],"default":null}]}`,
+		"default value ought to encode using field schema")
+}
+
+func TestRecordRecursiveRoundTrip(t *testing.T) {
+	codec, err := goavro.NewCodec(`
+{
+  "type": "record",
+  "name": "LongList",                  
+  "fields" : [
+    {"name": "next", "type": ["null", "LongList"], "default": null}
+  ]
+}
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// NOTE: May omit fields when using default value
+	initial := `{"next":{"LongList":{}}}`
+
+	// NOTE: Textual encoding will show all fields, even those with values that
+	// match their default values
+	final := `{"next":{"LongList":{"next":null}}}`
+
+	// Convert textual Avro data (in Avro JSON format) to native Go form
+	datum, _, err := codec.NativeFromTextual([]byte(initial))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Convert native Go form to binary Avro data
+	buf, err := codec.BinaryFromNative(nil, datum)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Convert binary Avro data back to native Go form
+	datum, _, err = codec.NativeFromBinary(buf)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Convert native Go form to textual Avro data
+	buf, err = codec.TextualFromNative(nil, datum)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if actual, expected := string(buf), final; actual != expected {
+		t.Fatalf("Actual: %v; Expected: %v", actual, expected)
+	}
+}
+
+func ExampleRecordRecursiveRoundTrip() {
+	codec, err := goavro.NewCodec(`
+{
+  "type": "record",
+  "name": "LongList",
+  "fields" : [
+	{"name": "next", "type": ["null", "LongList"], "default": null}
+  ]
+}
+`)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	// NOTE: May omit fields when using default value
+	textual := []byte(`{"next":{"LongList":{"next":{"LongList":{}}}}}`)
+
+	// Convert textual Avro data (in Avro JSON format) to native Go form
+	native, _, err := codec.NativeFromTextual(textual)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	// Convert native Go form to binary Avro data
+	binary, err := codec.BinaryFromNative(nil, native)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	// Convert binary Avro data back to native Go form
+	native, _, err = codec.NativeFromBinary(binary)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	// Convert native Go form to textual Avro data
+	textual, err = codec.TextualFromNative(nil, native)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	// NOTE: Textual encoding will show all fields, even those with values that
+	// match their default values
+	fmt.Println(string(textual))
+	// Output: {"next":{"LongList":{"next":{"LongList":{"next":null}}}}}
+}
+
+func ExampleBinaryFromNative() {
+	codec, err := goavro.NewCodec(`
+{
+  "type": "record",
+  "name": "LongList",
+  "fields" : [
+    {"name": "next", "type": ["null", "LongList"], "default": null}
+  ]
+}
+`)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	// Convert native Go form to binary Avro data
+	binary, err := codec.BinaryFromNative(nil, map[string]interface{}{
+		"next": map[string]interface{}{
+			"LongList": map[string]interface{}{
+				"next": map[string]interface{}{
+					"LongList": map[string]interface{}{
+					// NOTE: May omit fields when using default value
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	fmt.Printf("%#v", binary)
+	// Output: []byte{0x2, 0x2, 0x0}
+}
+
+func ExampleNativeFromBinary() {
+	codec, err := goavro.NewCodec(`
+{
+  "type": "record",
+  "name": "LongList",
+  "fields" : [
+    {"name": "next", "type": ["null", "LongList"], "default": null}
+  ]
+}
+`)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	// Convert native Go form to binary Avro data
+	binary := []byte{0x2, 0x2, 0x0}
+
+	native, _, err := codec.NativeFromBinary(binary)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	fmt.Printf("%v", native)
+	// Output: map[next:map[LongList:map[next:map[LongList:map[next:<nil>]]]]]
+}
+
+func ExampleNativeFromTextual() {
+	codec, err := goavro.NewCodec(`
+{
+  "type": "record",
+  "name": "LongList",
+  "fields" : [
+    {"name": "next", "type": ["null", "LongList"], "default": null}
+  ]
+}
+`)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	// Convert native Go form to text Avro data
+	text := []byte(`{"next":{"LongList":{"next":{"LongList":{"next":null}}}}}`)
+
+	native, _, err := codec.NativeFromTextual(text)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	fmt.Printf("%v", native)
+	// Output: map[next:map[LongList:map[next:map[LongList:map[next:<nil>]]]]]
+}
+
+func ExampleTextualFromNative() {
+	codec, err := goavro.NewCodec(`
+{
+  "type": "record",
+  "name": "LongList",
+  "fields" : [
+    {"name": "next", "type": ["null", "LongList"], "default": null}
+  ]
+}
+`)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	// Convert native Go form to text Avro data
+	text, err := codec.TextualFromNative(nil, map[string]interface{}{
+		"next": map[string]interface{}{
+			"LongList": map[string]interface{}{
+				"next": map[string]interface{}{
+					"LongList": map[string]interface{}{
+					// NOTE: May omit fields when using default value
+					},
+				},
+			},
+		},
+	})
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	fmt.Printf("%s", text)
+	// Output: {"next":{"LongList":{"next":{"LongList":{"next":null}}}}}
 }

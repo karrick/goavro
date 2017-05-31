@@ -99,7 +99,7 @@ func benchmarkNativeFromBinaryUsingV5(b *testing.B, avroPath string) {
 	}
 }
 
-func benchmarkTextFromNativeUsingJSONMarshal(b *testing.B, avroPath string) {
+func benchmarkTextualFromNativeUsingJSONMarshal(b *testing.B, avroPath string) {
 	avroBlob, err := ioutil.ReadFile(avroPath)
 	if err != nil {
 		b.Fatal(err)
@@ -111,7 +111,7 @@ func benchmarkTextFromNativeUsingJSONMarshal(b *testing.B, avroPath string) {
 	}
 }
 
-func benchmarkTextFromNativeUsingV5(b *testing.B, avroPath string) {
+func benchmarkTextualFromNativeUsingV5(b *testing.B, avroPath string) {
 	avroBlob, err := ioutil.ReadFile(avroPath)
 	if err != nil {
 		b.Fatal(err)
@@ -123,7 +123,7 @@ func benchmarkTextFromNativeUsingV5(b *testing.B, avroPath string) {
 	}
 }
 
-func benchmarkNativeFromTextUsingJSONUnmarshal(b *testing.B, avroPath string) {
+func benchmarkNativeFromTextualUsingJSONUnmarshal(b *testing.B, avroPath string) {
 	avroBlob, err := ioutil.ReadFile(avroPath)
 	if err != nil {
 		b.Fatal(err)
@@ -136,7 +136,7 @@ func benchmarkNativeFromTextUsingJSONUnmarshal(b *testing.B, avroPath string) {
 	}
 }
 
-func benchmarkNativeFromTextUsingV5(b *testing.B, avroPath string) {
+func benchmarkNativeFromTextualUsingV5(b *testing.B, avroPath string) {
 	avroBlob, err := ioutil.ReadFile(avroPath)
 	if err != nil {
 		b.Fatal(err)

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"fmt"
 	"math"
-	"strings"
 	"testing"
 
 	"github.com/karrick/goavro"
@@ -15,10 +14,8 @@ func testTextDecodeFail(t *testing.T, schema string, buf []byte, errorMessage st
 	if err != nil {
 		t.Fatal(err)
 	}
-	value, newBuffer, err := c.TextDecode(buf)
-	if err == nil || !strings.Contains(err.Error(), errorMessage) {
-		t.Errorf("Actual: %v; Expected: %s", err, errorMessage)
-	}
+	value, newBuffer, err := c.NativeFromTextual(buf)
+	ensureError(t, err, errorMessage)
 	if value != nil {
 		t.Errorf("Actual: %v; Expected: %v", value, nil)
 	}
@@ -32,10 +29,8 @@ func testTextEncodeFail(t *testing.T, schema string, datum interface{}, errorMes
 	if err != nil {
 		t.Fatal(err)
 	}
-	buf, err := c.TextEncode(nil, datum)
-	if err == nil || !strings.Contains(err.Error(), errorMessage) {
-		t.Errorf("Actual: %v; Expected: %s", err, errorMessage)
-	}
+	buf, err := c.TextualFromNative(nil, datum)
+	ensureError(t, err, errorMessage)
 	if buf != nil {
 		t.Errorf("Actual: %v; Expected: %v", buf, nil)
 	}
@@ -55,7 +50,7 @@ func testTextDecodePass(t *testing.T, schema string, datum interface{}, encoded 
 		t.Fatalf("schema: %s; %s", schema, err)
 	}
 
-	decoded, remaining, err := codec.TextDecode(encoded)
+	decoded, remaining, err := codec.NativeFromTextual(encoded)
 	if err != nil {
 		t.Fatalf("schema: %s; %s", schema, err)
 	}
@@ -177,7 +172,7 @@ func testTextEncodePass(t *testing.T, schema string, datum interface{}, expected
 		t.Fatalf("Schma: %q %s", schema, err)
 	}
 
-	actual, err := codec.TextEncode(nil, datum)
+	actual, err := codec.TextualFromNative(nil, datum)
 	if err != nil {
 		t.Fatalf("schema: %s; Datum: %v; %s", schema, datum, err)
 	}

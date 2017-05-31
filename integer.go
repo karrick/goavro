@@ -17,7 +17,7 @@ const (
 // Binary Decode
 ////////////////////////////////////////
 
-func intDecoder(buf []byte) (interface{}, []byte, error) {
+func intNativeFromBinary(buf []byte) (interface{}, []byte, error) {
 	var offset, value int
 	var shift uint
 	for offset = 0; offset < len(buf); offset++ {
@@ -31,7 +31,7 @@ func intDecoder(buf []byte) (interface{}, []byte, error) {
 	return nil, nil, io.ErrShortBuffer
 }
 
-func longDecoder(buf []byte) (interface{}, []byte, error) {
+func longNativeFromBinary(buf []byte) (interface{}, []byte, error) {
 	var offset int
 	var value uint64
 	var shift uint
@@ -50,35 +50,35 @@ func longDecoder(buf []byte) (interface{}, []byte, error) {
 // Binary Encode
 ////////////////////////////////////////
 
-func intEncoder(buf []byte, datum interface{}) ([]byte, error) {
+func intBinaryFromNative(buf []byte, datum interface{}) ([]byte, error) {
 	var value int32
 	switch v := datum.(type) {
 	case int32:
 		value = v
 	case int:
 		if value = int32(v); int(value) != v {
-			return buf, fmt.Errorf("int: provided Go int would lose precision: %d", v)
+			return nil, fmt.Errorf("cannot encode binary int: provided Go int would lose precision: %d", v)
 		}
 	case int64:
 		if value = int32(v); int64(value) != v {
-			return buf, fmt.Errorf("int: provided Go int would lose precision: %d", v)
+			return nil, fmt.Errorf("cannot encode binary int: provided Go int64 would lose precision: %d", v)
 		}
 	case float64:
 		if value = int32(v); float64(value) != v {
-			return buf, fmt.Errorf("int: provided Go int would lose precision: %f", v)
+			return nil, fmt.Errorf("cannot encode binary int: provided Go float64 would lose precision: %f", v)
 		}
 	case float32:
 		if value = int32(v); float32(value) != v {
-			return buf, fmt.Errorf("int: provided Go int would lose precision: %f", v)
+			return nil, fmt.Errorf("cannot encode binary int: provided Go float32 would lose precision: %f", v)
 		}
 	default:
-		return buf, fmt.Errorf("long: expected: Go numeric; received: %T", datum)
+		return nil, fmt.Errorf("cannot encode binary int: expected: Go numeric; received: %T", datum)
 	}
 	encoded := uint64((uint32(value) << 1) ^ uint32(value>>intDownShift))
 	return integerBinaryEncoder(buf, encoded)
 }
 
-func longEncoder(buf []byte, datum interface{}) ([]byte, error) {
+func longBinaryFromNative(buf []byte, datum interface{}) ([]byte, error) {
 	var value int64
 	switch v := datum.(type) {
 	case int64:
@@ -89,14 +89,14 @@ func longEncoder(buf []byte, datum interface{}) ([]byte, error) {
 		value = int64(v)
 	case float64:
 		if value = int64(v); float64(value) != v {
-			return buf, fmt.Errorf("long: provided Go int would lose precision: %f", v)
+			return nil, fmt.Errorf("cannot encode binary long: provided Go float64 would lose precision: %f", v)
 		}
 	case float32:
 		if value = int64(v); float32(value) != v {
-			return buf, fmt.Errorf("long: provided Go int would lose precision: %f", v)
+			return nil, fmt.Errorf("cannot encode binary long: provided Go float32 would lose precision: %f", v)
 		}
 	default:
-		return buf, fmt.Errorf("long: expected: Go numeric; received: %T", datum)
+		return nil, fmt.Errorf("long: expected: Go numeric; received: %T", datum)
 	}
 	encoded := (uint64(value) << 1) ^ uint64(value>>longDownShift)
 	return integerBinaryEncoder(buf, encoded)
@@ -122,22 +122,22 @@ func integerBinaryEncoder(buf []byte, encoded uint64) ([]byte, error) {
 // Text Decode
 ////////////////////////////////////////
 
-func longTextDecoder(buf []byte) (interface{}, []byte, error) {
+func longNativeFromTextual(buf []byte) (interface{}, []byte, error) {
 	return integerTextDecoder(buf, 64)
 }
 
-func intTextDecoder(buf []byte) (interface{}, []byte, error) {
+func intNativeFromTextual(buf []byte) (interface{}, []byte, error) {
 	return integerTextDecoder(buf, 32)
 }
 
 func integerTextDecoder(buf []byte, bitSize int) (interface{}, []byte, error) {
 	index, err := numberLength(buf, false) // NOTE: floatAllowed = false
 	if err != nil {
-		return nil, buf, err
+		return nil, nil, err
 	}
 	datum, err := strconv.ParseInt(string(buf[:index]), 10, bitSize)
 	if err != nil {
-		return nil, buf, err
+		return nil, nil, err
 	}
 	if bitSize == 32 {
 		return int32(datum), buf[index:], nil
@@ -149,11 +149,11 @@ func integerTextDecoder(buf []byte, bitSize int) (interface{}, []byte, error) {
 // Text Encode
 ////////////////////////////////////////
 
-func longTextEncoder(buf []byte, datum interface{}) ([]byte, error) {
+func longTextualFromNative(buf []byte, datum interface{}) ([]byte, error) {
 	return integerTextEncoder(buf, datum, 64)
 }
 
-func intTextEncoder(buf []byte, datum interface{}) ([]byte, error) {
+func intTextualFromNative(buf []byte, datum interface{}) ([]byte, error) {
 	return integerTextEncoder(buf, datum, 32)
 }
 
@@ -169,19 +169,22 @@ func integerTextEncoder(buf []byte, datum interface{}, bitSize int) ([]byte, err
 	case float32:
 		if someInt64 = int64(v); float32(someInt64) != v {
 			if bitSize == 64 {
-				return buf, fmt.Errorf("long: provided Go int would lose precision: %f", v)
+				return nil, fmt.Errorf("cannot encode textual long: provided Go float32 would lose precision: %f", v)
 			}
-			return buf, fmt.Errorf("int: provided Go int would lose precision: %f", v)
+			return nil, fmt.Errorf("cannot encode textual int: provided Go float32 would lose precision: %f", v)
 		}
 	case float64:
 		if someInt64 = int64(v); float64(someInt64) != v {
 			if bitSize == 64 {
-				return buf, fmt.Errorf("long: provided Go int would lose precision: %f", v)
+				return nil, fmt.Errorf("cannot encode textual long: provided Go float64 would lose precision: %f", v)
 			}
-			return buf, fmt.Errorf("int: provided Go int would lose precision: %f", v)
+			return nil, fmt.Errorf("cannot encode textual int: provided Go float64 would lose precision: %f", v)
 		}
 	default:
-		return buf, fmt.Errorf("float: expected: Go numeric; received: %T", datum)
+		if bitSize == 64 {
+			return nil, fmt.Errorf("cannot encode textual long: expected: Go numeric; received: %T", datum)
+		}
+		return nil, fmt.Errorf("cannot encode textual int: expected: Go numeric; received: %T", datum)
 	}
 	return strconv.AppendInt(buf, someInt64, 10), nil
 }

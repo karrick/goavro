@@ -38,7 +38,7 @@ func nativeFromAvroUsingV5(tb testing.TB, avroBlob []byte) ([]interface{}, *v5.C
 func binaryFromNativeUsingV5(tb testing.TB, codec *v5.Codec, nativeData []interface{}) [][]byte {
 	binaryData := make([][]byte, len(nativeData))
 	for i, datum := range nativeData {
-		binaryDatum, err := codec.BinaryEncode(nil, datum)
+		binaryDatum, err := codec.BinaryFromNative(nil, datum)
 		if err != nil {
 			tb.Fatal(err)
 		}
@@ -50,7 +50,7 @@ func binaryFromNativeUsingV5(tb testing.TB, codec *v5.Codec, nativeData []interf
 func textFromNativeUsingV5(tb testing.TB, codec *v5.Codec, nativeData []interface{}) [][]byte {
 	textData := make([][]byte, len(nativeData))
 	for i, nativeDatum := range nativeData {
-		textDatum, err := codec.TextEncode(nil, nativeDatum)
+		textDatum, err := codec.TextualFromNative(nil, nativeDatum)
 		if err != nil {
 			tb.Fatal(err)
 		}
@@ -62,7 +62,7 @@ func textFromNativeUsingV5(tb testing.TB, codec *v5.Codec, nativeData []interfac
 func nativeFromBinaryUsingV5(tb testing.TB, codec *v5.Codec, binaryData [][]byte) []interface{} {
 	nativeData := make([]interface{}, len(binaryData))
 	for i, binaryDatum := range binaryData {
-		nativeDatum, buf, err := codec.BinaryDecode(binaryDatum)
+		nativeDatum, buf, err := codec.NativeFromBinary(binaryDatum)
 		if err != nil {
 			tb.Fatal(err)
 		}
@@ -77,7 +77,7 @@ func nativeFromBinaryUsingV5(tb testing.TB, codec *v5.Codec, binaryData [][]byte
 func nativeFromTextUsingV5(tb testing.TB, codec *v5.Codec, textData [][]byte) []interface{} {
 	nativeData := make([]interface{}, len(textData))
 	for i, textDatum := range textData {
-		nativeDatum, buf, err := codec.TextDecode(textDatum)
+		nativeDatum, buf, err := codec.NativeFromTextual(textDatum)
 		if err != nil {
 			tb.Fatal(err)
 		}

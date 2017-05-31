@@ -21,19 +21,11 @@ func (e ErrInvalidName) Error() string {
 // NOTE: This function designed to work with name components, after they have
 // been split on the period rune.
 func isRuneInvalidForFirstCharacter(r rune) bool {
-	// if (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') || r == '_' || r == '.' {
-
-	if (r >= 'A' && r <= 'Z') || (r >= 'a' && r <= 'z') || r == '_' {
-		return false
-	}
-	return true
+	return (r < 'A' || r > 'Z') && (r < 'a' || r > 'z') && r != '_'
 }
 
 func isRuneInvalidForOtherCharacters(r rune) bool {
-	if r >= '0' && r <= '9' {
-		return false
-	}
-	return isRuneInvalidForFirstCharacter(r)
+	return isRuneInvalidForFirstCharacter(r) && (r < '0' || r > '9')
 }
 
 func checkNameComponent(s string) error {

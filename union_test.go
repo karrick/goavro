@@ -81,7 +81,7 @@ func TestUnionMapRecordFitsInRecord(t *testing.T) {
 	}
 	datumIn := goavro.Union("com.example.record", datum)
 
-	buf, err := codec.BinaryEncode(nil, datumIn)
+	buf, err := codec.BinaryFromNative(nil, datumIn)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -94,7 +94,7 @@ func TestUnionMapRecordFitsInRecord(t *testing.T) {
 	}
 
 	// round trip
-	datumOut, buf, err := codec.BinaryDecode(buf)
+	datumOut, buf, err := codec.NativeFromBinary(buf)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -136,11 +136,11 @@ func TestUnionRecordFieldWhenNull(t *testing.T) {
   ]
 }`
 
+	testBinaryCodecPass(t, schema, map[string]interface{}{"f1": goavro.Union("array", []interface{}{})}, []byte("\x00\x00"))
 	testBinaryCodecPass(t, schema, map[string]interface{}{"f1": goavro.Union("array", []string{"bar"})}, []byte("\x00\x02\x06bar\x00"))
-
-	// decoded blob will include "f2" so decode test will be more involved
-	testBinaryEncodePass(t, schema, map[string]interface{}{"f1": nil}, []byte("\x02"))
-	testBinaryEncodePass(t, schema, map[string]interface{}{}, []byte("\x02"))
+	testBinaryCodecPass(t, schema, map[string]interface{}{"f1": goavro.Union("array", []string{})}, []byte("\x00\x00"))
+	testBinaryCodecPass(t, schema, map[string]interface{}{"f1": goavro.Union("null", nil)}, []byte("\x02"))
+	testBinaryCodecPass(t, schema, map[string]interface{}{"f1": nil}, []byte("\x02"))
 }
 
 func TestUnionText(t *testing.T) {
@@ -148,4 +148,17 @@ func TestUnionText(t *testing.T) {
 	testTextCodecPass(t, `["null","int"]`, goavro.Union("null", nil), []byte("null"))
 	testTextCodecPass(t, `["null","int"]`, goavro.Union("int", 3), []byte(`{"int":3}`))
 	testTextCodecPass(t, `["null","int","string"]`, goavro.Union("string", "😂 "), []byte(`{"string":"\u0001\uD83D\uDE02 "}`))
+}
+
+func ExampleUnion() {
+	codec, err := goavro.NewCodec(`["null","string","int"]`)
+	if err != nil {
+		fmt.Println(err)
+	}
+	buf, err := codec.TextualFromNative(nil, goavro.Union("string", "some string"))
+	if err != nil {
+		fmt.Println(err)
+	}
+	fmt.Println(string(buf))
+	// Output: {"string":"some string"}
 }

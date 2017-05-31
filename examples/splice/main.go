@@ -64,7 +64,7 @@ func main() {
 		bail(err)
 	}
 
-	datum, _, err := bd.BinaryDecode(dataBytes)
+	datum, _, err := bd.NativeFromBinary(dataBytes)
 	if err != nil {
 		bail(err)
 	}

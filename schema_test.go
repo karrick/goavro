@@ -2,7 +2,6 @@ package goavro_test
 
 import (
 	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/karrick/goavro"
@@ -28,9 +27,7 @@ func testSchemaPrimativeCodec(t *testing.T, primitiveTypeName string) {
 
 func testSchemaInvalid(t *testing.T, schema, errorMessage string) {
 	_, err := goavro.NewCodec(schema)
-	if err == nil || !strings.Contains(err.Error(), errorMessage) {
-		t.Errorf("Actual: %v; Expected: %s", err, errorMessage)
-	}
+	ensureError(t, err, errorMessage)
 }
 
 func testSchemaValid(t *testing.T, schema string) {
@@ -139,6 +136,16 @@ func TestSchemaFixedNameCanBeUsedLater(t *testing.T) {
 
 	testBinaryEncodePass(t, schema, datum, []byte("abcdefgh"))
 }
+
+// func ExampleCodecSchema() {
+// 	schema := `{"type":"map","values":{"type":"enum","name":"foo","symbols":["alpha","bravo"]}}`
+// 	codec, err := goavro.NewCodec(schema)
+// 	if err != nil {
+// 		fmt.Println(err)
+// 	}
+// 	fmt.Println(codec.Schema())
+// 	// Output: {"type":"map","values":{"name":"foo","type":"enum","symbols":["alpha","bravo"]}}
+// }
 
 func TestMapValueTypeEnum(t *testing.T) {
 	schema := `{"type":"map","values":{"type":"enum","name":"foo","symbols":["alpha","bravo"]}}`

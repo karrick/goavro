@@ -24,6 +24,7 @@ func makeRecordCodec(st map[string]*Codec, enclosingNamespace string, schemaMap 
 	codecFromFieldName := make(map[string]*Codec)
 	codecFromIndex := make([]*Codec, len(fieldSchemas))
 	nameFromIndex := make([]string, len(fieldSchemas))
+	defaultValueFromName := make(map[string]interface{}, len(fieldSchemas))
 
 	for i, fieldSchema := range fieldSchemas {
 		fieldSchemaMap, ok := fieldSchema.(map[string]interface{})
@@ -38,6 +39,7 @@ func makeRecordCodec(st map[string]*Codec, enclosingNamespace string, schemaMap 
 		if err != nil {
 			return nil, fmt.Errorf("Record %q field %d ought to be valid Avro named type: %s", c.typeName, i+1, err)
 		}
+
 		// However, when creating a full name for the field name, be sure to use
 		// record's namespace
 		n, err := newNameFromSchemaMap(c.typeName.namespace, fieldSchemaMap)
@@ -48,67 +50,121 @@ func makeRecordCodec(st map[string]*Codec, enclosingNamespace string, schemaMap 
 		if _, ok := codecFromFieldName[fieldName]; ok {
 			return nil, fmt.Errorf("Record %q field %d ought to have unique name: %q", c.typeName, i+1, fieldName)
 		}
+
+		if defaultValue, ok := fieldSchemaMap["default"]; ok {
+			// if codec is union, then default value ought to encode using first schema in union
+			if fieldCodec.typeName.short() == "union" {
+				// NOTE: To support record field default values, union schema
+				// set to the type name of first member
+				defaultValue = Union(fieldCodec.schema, defaultValue)
+			}
+			// attempt to encode default value using codec
+			_, err = fieldCodec.binaryFromNative(nil, defaultValue)
+			if err != nil {
+				return nil, fmt.Errorf("Record %q field %q: default value ought to encode using field schema: %s", c.typeName, fieldName, err)
+			}
+			defaultValueFromName[fieldName] = defaultValue
+		}
+
 		nameFromIndex[i] = fieldName
 		codecFromIndex[i] = fieldCodec
 		codecFromFieldName[fieldName] = fieldCodec
 	}
 
-	c.binaryDecoder = func(buf []byte) (interface{}, []byte, error) {
-		recordMap := make(map[string]interface{}, len(codecFromIndex))
-		for i, fieldCodec := range codecFromIndex {
-			var value interface{}
-			var err error
-			value, buf, err = fieldCodec.binaryDecoder(buf)
-			if err != nil {
-				return nil, buf, err
-			}
-			recordMap[nameFromIndex[i]] = value
-		}
-		return recordMap, buf, nil
-	}
-
-	c.binaryEncoder = func(buf []byte, datum interface{}) ([]byte, error) {
+	c.binaryFromNative = func(buf []byte, datum interface{}) ([]byte, error) {
 		valueMap, ok := datum.(map[string]interface{})
 		if !ok {
-			return buf, fmt.Errorf("Record %q value ought to be map[string]interface{}; received: %T", c.typeName, datum)
+			return nil, fmt.Errorf("cannot encode binary record %q: expected map[string]interface{}; received: %T", c.typeName, datum)
 		}
 
 		// records encoded in order fields were defined in schema
 		for i, fieldCodec := range codecFromIndex {
 			fieldName := nameFromIndex[i]
 
-			// NOTE: If field value was not specified in map, then attempt to
-			// encode the nil
+			// NOTE: If field value was not specified in map, then set
+			// fieldValue to its default value (which may or may not have been
+			// specified).
 			fieldValue, ok := valueMap[fieldName]
+			if !ok {
+				if fieldValue, ok = defaultValueFromName[fieldName]; !ok {
+					return nil, fmt.Errorf("cannot encode binary record %q field %q: schema does not specify default value and no value provided", c.typeName, fieldName)
+				}
+			}
 
 			var err error
-			buf, err = fieldCodec.binaryEncoder(buf, fieldValue)
+			buf, err = fieldCodec.binaryFromNative(buf, fieldValue)
 			if err != nil {
-				if !ok {
-					return buf, fmt.Errorf("Record %q field value for %q was not specified", c.typeName, fieldName)
-				}
-				// field was specified in datum; therefore its value was invalid
-				return buf, fmt.Errorf("Record %q field value for %q does not match its schema: %s", c.typeName, fieldName, err)
+				return nil, fmt.Errorf("cannot encode binary record %q field %q: value does not match its schema: %s", c.typeName, fieldName, err)
 			}
 		}
 		return buf, nil
 	}
 
-	c.textDecoder = func(buf []byte) (interface{}, []byte, error) {
+	c.nativeFromBinary = func(buf []byte) (interface{}, []byte, error) {
+		recordMap := make(map[string]interface{}, len(codecFromIndex))
+		for i, fieldCodec := range codecFromIndex {
+			name := nameFromIndex[i]
+			var value interface{}
+			var err error
+			value, buf, err = fieldCodec.nativeFromBinary(buf)
+			if err != nil {
+				return nil, nil, fmt.Errorf("cannot decode binary record %q field %q: %s", c.typeName, name, err)
+			}
+			recordMap[name] = value
+		}
+		return recordMap, buf, nil
+	}
+
+	c.nativeFromTextual = func(buf []byte) (interface{}, []byte, error) {
 		var mapValues map[string]interface{}
 		var err error
-		mapValues, buf, err = genericMapTextDecoder(buf, nil, codecFromFieldName) // defaultCodec == nil
+		// NOTE: Setting `defaultCodec == nil` instructs genericMapTextDecoder
+		// to return an error when a field name is not found in the
+		// codecFromFieldName map.
+		mapValues, buf, err = genericMapTextDecoder(buf, nil, codecFromFieldName)
 		if err != nil {
-			return nil, buf, err
+			return nil, nil, fmt.Errorf("cannot decode textual record %q: %s", c.typeName, err)
 		}
 		if actual, expected := len(mapValues), len(codecFromFieldName); actual != expected {
-			return nil, buf, fmt.Errorf("cannot decode Record: only found %d of %d fields", actual, expected)
+			// set missing field keys to their respective default values, then
+			// re-check number of keys
+			for fieldName, defaultValue := range defaultValueFromName {
+				if _, ok := mapValues[fieldName]; !ok {
+					mapValues[fieldName] = defaultValue
+				}
+			}
+			if actual, expected = len(mapValues), len(codecFromFieldName); actual != expected {
+				return nil, nil, fmt.Errorf("cannot decode textual record %q: only found %d of %d fields", c.typeName, actual, expected)
+			}
 		}
 		return mapValues, buf, nil
 	}
 
-	c.textEncoder = func(buf []byte, datum interface{}) ([]byte, error) {
-		return genericMapTextEncoder(buf, datum, nil, codecFromFieldName) // defaultCodec == nil
+	c.textualFromNative = func(buf []byte, datum interface{}) ([]byte, error) {
+		// NOTE: Ensure only schema defined field names are encoded; and if
+		// missing in datum, either use the provided field default value or
+		// return an error.
+		sourceMap, ok := datum.(map[string]interface{})
+		if !ok {
+			return nil, fmt.Errorf("cannot encode textual record %q: expected map[string]interface{}; received: %T", c.typeName, datum)
+		}
+		destMap := make(map[string]interface{}, len(codecFromIndex))
+		for fieldName := range codecFromFieldName {
+			fieldValue, ok := sourceMap[fieldName]
+			if !ok {
+				defaultValue, ok := defaultValueFromName[fieldName]
+				if !ok {
+					return nil, fmt.Errorf("cannot encode textual record %q field %q: schema does not specify default value and no value provided", c.typeName, fieldName)
+				}
+				fieldValue = defaultValue
+			}
+			destMap[fieldName] = fieldValue
+		}
+		datum = destMap
+		// NOTE: Setting `defaultCodec == nil` instructs genericMapTextEncoder
+		// to return an error when a field name is not found in the
+		// codecFromFieldName map.
+		return genericMapTextEncoder(buf, datum, nil, codecFromFieldName)
 	}
 
 	return c, nil

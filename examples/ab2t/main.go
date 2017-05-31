@@ -44,7 +44,7 @@ func dumpFromReader(ior io.Reader) error {
 
 	go func(codec *goavro.Codec, data <-chan interface{}, wg *sync.WaitGroup) {
 		for datum := range data {
-			buf, err := codec.TextEncode(nil, datum)
+			buf, err := codec.TextualFromNative(nil, datum)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "%s\n", err)
 				continue

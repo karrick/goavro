@@ -46,7 +46,7 @@ func TestMapDecodeNextBlockCountNegative(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	decoded, _, err := c.BinaryDecode([]byte{1, 2, 4, 'k', '1', 6, 1, 8, 4, 'k', '2', 0x1a, 0})
+	decoded, _, err := c.NativeFromBinary([]byte{1, 2, 4, 'k', '1', 6, 1, 8, 4, 'k', '2', 0x1a, 0})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -83,14 +83,14 @@ func TestMapDecodeNextBlockCountNegativeTooLarge(t *testing.T) {
 
 func TestMapDecodeFail(t *testing.T) {
 	schema := `{"type":"map","values":"boolean"}`
-	testBinaryDecodeFail(t, schema, nil, "cannot decode Map block count")           // leading block count
-	testBinaryDecodeFail(t, schema, []byte("\x01"), "cannot decode Map block size") // when block count < 0
-	testBinaryDecodeFail(t, schema, []byte("\x02\x04"), "cannot decode Map key")
-	testBinaryDecodeFail(t, schema, []byte("\x02\x04"), "cannot decode Map key")
-	testBinaryDecodeFail(t, schema, []byte("\x02\x04a"), "cannot decode Map key")
-	testBinaryDecodeFail(t, schema, []byte("\x02\x04ab"), "cannot decode Map value")
+	testBinaryDecodeFail(t, schema, nil, "cannot decode binary map block count")           // leading block count
+	testBinaryDecodeFail(t, schema, []byte("\x01"), "cannot decode binary map block size") // when block count < 0
+	testBinaryDecodeFail(t, schema, []byte("\x02\x04"), "cannot decode binary map key")
+	testBinaryDecodeFail(t, schema, []byte("\x02\x04"), "cannot decode binary map key")
+	testBinaryDecodeFail(t, schema, []byte("\x02\x04a"), "cannot decode binary map key")
+	testBinaryDecodeFail(t, schema, []byte("\x02\x04ab"), `cannot decode binary map key "ab" value`)
 	testBinaryDecodeFail(t, schema, []byte("\x02\x04ab\x02"), "boolean: expected")
-	testBinaryDecodeFail(t, schema, []byte("\x02\x04ab\x01"), "cannot decode Map block count") // trailing block count
+	testBinaryDecodeFail(t, schema, []byte("\x02\x04ab\x01"), "cannot decode binary map block count") // trailing block count
 	testBinaryDecodeFail(t, schema, []byte("\x04\x04ab\x00\x04ab\x00\x00"), "duplicate key")
 }
 

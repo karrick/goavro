@@ -5,40 +5,6 @@ import (
 	"fmt"
 )
 
-// BinaryCoder interface describes types that expose both the BinaryDecode and
-// the BinaryEncode methods.
-type BinaryCoder interface {
-	BinaryDecoder
-	BinaryEncoder
-}
-
-// BinaryDecoder interface describes types that expose the BinaryDecode method.
-type BinaryDecoder interface {
-	BinaryDecode([]byte) (interface{}, []byte, error)
-}
-
-// BinaryEncoder interface describes types that expose the BinaryEncode method.
-type BinaryEncoder interface {
-	BinaryEncode([]byte, interface{}) ([]byte, error)
-}
-
-// TextCoder interface describes types that expose both the TextDecode and the
-// TextEncode methods.
-type TextCoder interface {
-	TextDecoder
-	TextEncoder
-}
-
-// TextDecoder interface describes types that expose the TextDecode method.
-type TextDecoder interface {
-	TextDecode([]byte) (interface{}, []byte, error)
-}
-
-// TextEncoder interface describes types that expose the TextEncode method.
-type TextEncoder interface {
-	TextEncode([]byte, interface{}) ([]byte, error)
-}
-
 // Codec supports decoding binary and text Avro data to Go native data types,
 // and conversely encoding Go native data types to binary or text Avro data. A
 // Codec is created as a stateless structure that can be safely used in multiple
@@ -47,80 +13,100 @@ type Codec struct {
 	typeName *name
 	schema   string
 
-	binaryDecoder func([]byte) (interface{}, []byte, error)
-	textDecoder   func([]byte) (interface{}, []byte, error)
-
-	binaryEncoder func([]byte, interface{}) ([]byte, error)
-	textEncoder   func([]byte, interface{}) ([]byte, error)
+	nativeFromTextual func([]byte) (interface{}, []byte, error)
+	binaryFromNative  func([]byte, interface{}) ([]byte, error)
+	nativeFromBinary  func([]byte) (interface{}, []byte, error)
+	textualFromNative func([]byte, interface{}) ([]byte, error)
 }
 
 func newSymbolTable() map[string]*Codec {
 	return map[string]*Codec{
 		"boolean": &Codec{
-			typeName:      &name{"boolean", nullNamespace},
-			binaryDecoder: booleanDecoder,
-			binaryEncoder: booleanEncoder,
-			textDecoder:   booleanTextDecoder,
-			textEncoder:   booleanTextEncoder,
+			typeName:          &name{"boolean", nullNamespace},
+			binaryFromNative:  booleanBinaryFromNative,
+			nativeFromBinary:  booleanNativeFromBinary,
+			nativeFromTextual: booleanNativeFromTextual,
+			textualFromNative: booleanTextualFromNative,
 		},
 		"bytes": &Codec{
-			typeName:      &name{"bytes", nullNamespace},
-			binaryDecoder: bytesDecoder,
-			binaryEncoder: bytesEncoder,
-			textDecoder:   bytesTextDecoder,
-			textEncoder:   bytesTextEncoder,
+			typeName:          &name{"bytes", nullNamespace},
+			binaryFromNative:  bytesBinaryFromNative,
+			nativeFromBinary:  bytesNativeFromBinary,
+			nativeFromTextual: bytesNativeFromTextual,
+			textualFromNative: bytesTextualFromNative,
 		},
 		"double": &Codec{
-			typeName:      &name{"double", nullNamespace},
-			binaryDecoder: doubleDecoder,
-			binaryEncoder: doubleEncoder,
-			textDecoder:   doubleTextDecoder,
-			textEncoder:   doubleTextEncoder,
+			typeName:          &name{"double", nullNamespace},
+			binaryFromNative:  doubleBinaryFromNative,
+			nativeFromBinary:  doubleNativeFromBinary,
+			nativeFromTextual: doubleNativeFromTextual,
+			textualFromNative: doubleTextualFromNative,
 		},
 		"float": &Codec{
-			typeName:      &name{"float", nullNamespace},
-			binaryDecoder: floatDecoder,
-			binaryEncoder: floatEncoder,
-			textDecoder:   floatTextDecoder,
-			textEncoder:   floatTextEncoder,
+			typeName:          &name{"float", nullNamespace},
+			binaryFromNative:  floatBinaryFromNative,
+			nativeFromBinary:  floatNativeFromBinary,
+			nativeFromTextual: floatNativeFromTextual,
+			textualFromNative: floatTextualFromNative,
 		},
 		"int": &Codec{
-			typeName:      &name{"int", nullNamespace},
-			binaryDecoder: intDecoder,
-			binaryEncoder: intEncoder,
-			textDecoder:   intTextDecoder,
-			textEncoder:   intTextEncoder,
+			typeName:          &name{"int", nullNamespace},
+			binaryFromNative:  intBinaryFromNative,
+			nativeFromBinary:  intNativeFromBinary,
+			nativeFromTextual: intNativeFromTextual,
+			textualFromNative: intTextualFromNative,
 		},
 		"long": &Codec{
-			typeName:      &name{"long", nullNamespace},
-			binaryDecoder: longDecoder,
-			binaryEncoder: longEncoder,
-			textDecoder:   longTextDecoder,
-			textEncoder:   longTextEncoder,
+			typeName:          &name{"long", nullNamespace},
+			binaryFromNative:  longBinaryFromNative,
+			nativeFromBinary:  longNativeFromBinary,
+			nativeFromTextual: longNativeFromTextual,
+			textualFromNative: longTextualFromNative,
 		},
 		"null": &Codec{
-			typeName:      &name{"null", nullNamespace},
-			binaryDecoder: nullDecoder,
-			binaryEncoder: nullEncoder,
-			textDecoder:   nullTextDecoder,
-			textEncoder:   nullTextEncoder,
+			typeName:          &name{"null", nullNamespace},
+			binaryFromNative:  nullBinaryFromNative,
+			nativeFromBinary:  nullNativeFromBinary,
+			nativeFromTextual: nullNativeFromTextual,
+			textualFromNative: nullTextualFromNative,
 		},
 		"string": &Codec{
-			typeName:      &name{"string", nullNamespace},
-			binaryDecoder: stringDecoder,
-			binaryEncoder: stringEncoder,
-			textDecoder:   stringTextDecoder,
-			textEncoder:   stringTextEncoder,
+			typeName:          &name{"string", nullNamespace},
+			binaryFromNative:  stringBinaryFromNative,
+			nativeFromBinary:  stringNativeFromBinary,
+			nativeFromTextual: stringNativeFromTextual,
+			textualFromNative: stringTextualFromNative,
 		},
 	}
 }
 
-// NewCodec returns a Codec used to decode binary and text Avro data to Go
-// native data types, and conversely encode Go native types to binary and text
-// Avro data. The returned Codec is a stateless structure that can be safely
-// used in multiple go routines simultaneously. The returned Codec will only be
-// able to decode and encode data that adheres to the supplied schema
-// specification string.
+// NewCodec returns a Codec used to translate between a byte slice of either
+// binary or textual Avro data and native Go data.
+//
+// Creating a `Codec` is fast, but ought to be performed exactly once per Avro
+// schema to process. Once a `Codec` is created, it may be used multiple times
+// to convert data between native form and binary Avro representation, or
+// between native form and textual Avro representation.
+//
+// A particular `Codec` can work with only one Avro schema. However,
+// there is no practical limit to how many `Codec`s may be created and
+// used in a program. Internally a `Codec` is merely a named tuple of
+// four function pointers, and maintains no runtime state that is mutated
+// after instantiation. In other words, `Codec`s may be safely used by
+// many go routines simultaneously, as your program requires.
+//
+//     codec, err := goavro.NewCodec(`
+//     {
+//       "type": "record",
+//       "name": "LongList",
+//       "fields" : [
+//         {"name": "next", "type": ["null", "LongList"], "default": null}
+//       ]
+//     }
+//     `)
+//     if err != nil {
+//             fmt.Println(err)
+//     }
 func NewCodec(schemaSpecification string) (*Codec, error) {
 	// bootstrap a symbol table with primitive type codecs for the new codec
 	st := newSymbolTable()
@@ -137,7 +123,7 @@ func NewCodec(schemaSpecification string) (*Codec, error) {
 	// condition.
 	var schema interface{}
 	if err := json.Unmarshal([]byte(schemaSpecification), &schema); err != nil {
-		return nil, fmt.Errorf("cannot unmarshal JSON: %s", err)
+		return nil, fmt.Errorf("cannot unmarshal schema JSON: %s", err)
 	}
 
 	c, err := buildCodec(st, nullNamespace, schema)
@@ -152,56 +138,176 @@ func NewCodec(schemaSpecification string) (*Codec, error) {
 	return c, err
 }
 
-// BinaryDecode converts Avro data in binary format from the provided byte slice
-// to Go native data types in accordance with the Avro schema supplied when
-// creating the Codec. On success, it returns the decoded datum, along with a
-// new byte slice with the decoded bytes consumed, and a nil error value. On
-// error, it returns nil for the datum value, the original byte slice, and the
-// error message.
-func (c Codec) BinaryDecode(buf []byte) (interface{}, []byte, error) {
-	value, newBuf, err := c.binaryDecoder(buf)
-	if err != nil {
-		return nil, buf, err // if error, return original byte slice
-	}
-	return value, newBuf, nil
-}
-
-// BinaryEncode converts Go native data types to Avro data in binary format in
-// accordance with the Avro schema supplied when creating the Codec. It is
-// supplied a byte slice to which to append the encoded data and the actual data
-// to encode. On success, it returns a new byte slice with the encoded bytes
-// appended, and a nil error value. On error, it returns the original byte
-// slice, and the error message.
-func (c Codec) BinaryEncode(buf []byte, datum interface{}) ([]byte, error) {
-	newBuf, err := c.binaryEncoder(buf, datum)
+// BinaryFromNative appends the binary encoded byte slice representation of the
+// provided native datum value to the provided byte slice
+// in accordance with the Avro schema supplied when
+// creating the Codec. It is supplied a byte slice to which to append the binary
+// encoded data along with the actual data to encode. On success, it returns a
+// new byte slice with the encoded bytes appended, and a nil error value. On
+// error, it returns the original byte slice, and the error message.
+//
+//     func ExampleBinaryFromNative() {
+//         codec, err := goavro.NewCodec(`
+//     {
+//       "type": "record",
+//       "name": "LongList",
+//       "fields" : [
+//         {"name": "next", "type": ["null", "LongList"], "default": null}
+//       ]
+//     }
+//     `)
+//         if err != nil {
+//             fmt.Println(err)
+//         }
+//
+//         // Convert native Go form to binary Avro data
+//         binary, err := codec.BinaryFromNative(nil, map[string]interface{}{
+//             "next": map[string]interface{}{
+//                 "LongList": map[string]interface{}{
+//                     "next": map[string]interface{}{
+//                         "LongList": map[string]interface{}{
+//                         // NOTE: May omit fields when using default value
+//                         },
+//                     },
+//                 },
+//             },
+//         })
+//         if err != nil {
+//             fmt.Println(err)
+//         }
+//
+//         fmt.Printf("%#v", binary)
+//         // Output: []byte{0x2, 0x2, 0x0}
+//     }
+func (c Codec) BinaryFromNative(buf []byte, datum interface{}) ([]byte, error) {
+	newBuf, err := c.binaryFromNative(buf, datum)
 	if err != nil {
 		return buf, err // if error, return original byte slice
 	}
 	return newBuf, nil
 }
 
-// TextDecode converts Avro data in JSON text format from the provided byte
-// slice to Go native data types in accordance with the Avro schema supplied
-// when creating the Codec. On success, it returns the decoded datum, along with
-// a new byte slice with the decoded bytes consumed, and a nil error value. On
-// error, it returns nil for the datum value, the original byte slice, and the
-// error message.
-func (c Codec) TextDecode(buf []byte) (interface{}, []byte, error) {
-	value, newBuf, err := c.textDecoder(buf)
+// NativeFromBinary returns a native datum value from the binary encoded byte
+// slice in accordance with the Avro schema supplied when creating the Codec. On
+// success, it returns the decoded datum, along with a new byte slice with the
+// decoded bytes consumed, and a nil error value. On error, it returns nil for
+// the datum value, the original byte slice, and the error message.
+//
+//     func ExampleNativeFromBinary() {
+//         codec, err := goavro.NewCodec(`
+//     {
+//       "type": "record",
+//       "name": "LongList",
+//       "fields" : [
+//         {"name": "next", "type": ["null", "LongList"], "default": null}
+//       ]
+//     }
+//     `)
+//         if err != nil {
+//             fmt.Println(err)
+//         }
+//
+//         // Convert native Go form to binary Avro data
+//         binary := []byte{0x2, 0x2, 0x0}
+//
+//         native, _, err := codec.NativeFromBinary(binary)
+//         if err != nil {
+//             fmt.Println(err)
+//         }
+//
+//         fmt.Printf("%v", native)
+//         // Output: map[next:map[LongList:map[next:map[LongList:map[next:<nil>]]]]]
+//     }
+func (c Codec) NativeFromBinary(buf []byte) (interface{}, []byte, error) {
+	value, newBuf, err := c.nativeFromBinary(buf)
 	if err != nil {
 		return nil, buf, err // if error, return original byte slice
 	}
 	return value, newBuf, nil
 }
 
-// TextEncode converts Go native data types to Avro data in JSON text format in
+// NativeFromTextual converts Avro data in JSON text format from the provided byte
+// slice to Go native data types in accordance with the Avro schema supplied
+// when creating the Codec. On success, it returns the decoded datum, along with
+// a new byte slice with the decoded bytes consumed, and a nil error value. On
+// error, it returns nil for the datum value, the original byte slice, and the
+// error message.
+//
+//     func ExampleNativeFromTextual() {
+//         codec, err := goavro.NewCodec(`
+//     {
+//       "type": "record",
+//       "name": "LongList",
+//       "fields" : [
+//         {"name": "next", "type": ["null", "LongList"], "default": null}
+//       ]
+//     }
+//     `)
+//         if err != nil {
+//             fmt.Println(err)
+//         }
+//
+//         // Convert native Go form to text Avro data
+//         text := []byte(`{"next":{"LongList":{"next":{"LongList":{"next":null}}}}}`)
+//
+//         native, _, err := codec.NativeFromTextual(text)
+//         if err != nil {
+//             fmt.Println(err)
+//         }
+//
+//         fmt.Printf("%v", native)
+//         // Output: map[next:map[LongList:map[next:map[LongList:map[next:<nil>]]]]]
+//     }
+func (c Codec) NativeFromTextual(buf []byte) (interface{}, []byte, error) {
+	value, newBuf, err := c.nativeFromTextual(buf)
+	if err != nil {
+		return nil, buf, err // if error, return original byte slice
+	}
+	return value, newBuf, nil
+}
+
+// TextualFromNative converts Go native data types to Avro data in JSON text format in
 // accordance with the Avro schema supplied when creating the Codec. It is
 // supplied a byte slice to which to append the encoded data and the actual data
 // to encode. On success, it returns a new byte slice with the encoded bytes
 // appended, and a nil error value. On error, it returns the original byte
 // slice, and the error message.
-func (c Codec) TextEncode(buf []byte, datum interface{}) ([]byte, error) {
-	newBuf, err := c.textEncoder(buf, datum)
+//
+//     func ExampleTextualFromNative() {
+//         codec, err := goavro.NewCodec(`
+//     {
+//       "type": "record",
+//       "name": "LongList",
+//       "fields" : [
+//         {"name": "next", "type": ["null", "LongList"], "default": null}
+//       ]
+//     }
+//     `)
+//         if err != nil {
+//             fmt.Println(err)
+//         }
+//
+//         // Convert native Go form to text Avro data
+//         text, err := codec.TextualFromNative(nil, map[string]interface{}{
+//             "next": map[string]interface{}{
+//                 "LongList": map[string]interface{}{
+//                     "next": map[string]interface{}{
+//                         "LongList": map[string]interface{}{
+//                         // NOTE: May omit fields when using default value
+//                         },
+//                     },
+//                 },
+//             },
+//         })
+//         if err != nil {
+//             fmt.Println(err)
+//         }
+//
+//         fmt.Printf("%s", text)
+//         // Output: {"next":{"LongList":{"next":{"LongList":{"next":null}}}}}
+//     }
+func (c Codec) TextualFromNative(buf []byte, datum interface{}) ([]byte, error) {
+	newBuf, err := c.textualFromNative(buf, datum)
 	if err != nil {
 		return buf, err // if error, return original byte slice
 	}
@@ -209,6 +315,16 @@ func (c Codec) TextEncode(buf []byte, datum interface{}) ([]byte, error) {
 }
 
 // Schema returns the compact schema used to create the Codec.
+//
+//     func ExampleCodecSchema() {
+//         schema := `{"type":"map","values":{"type":"enum","name":"foo","symbols":["alpha","bravo"]}}`
+//         codec, err := goavro.NewCodec(schema)
+//         if err != nil {
+//             fmt.Println(err)
+//         }
+//         fmt.Println(codec.Schema())
+//         // Output: {"type":"map","values":{"name":"foo","type":"enum","symbols":["alpha","bravo"]}}
+//     }
 func (c Codec) Schema() string {
 	return c.schema
 }
