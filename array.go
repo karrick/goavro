@@ -79,27 +79,9 @@ func makeArrayCodec(st map[string]*Codec, enclosingNamespace string, schemaMap m
 			return arrayValues, buf, nil
 		},
 		binaryFromNative: func(buf []byte, datum interface{}) ([]byte, error) {
-			var arrayValues []interface{}
-			switch i := datum.(type) {
-			case []interface{}:
-				arrayValues = i
-			default:
-				// NOTE: When given a slice of any other type, zip values to
-				// items as a convenience to client.
-				v := reflect.ValueOf(datum)
-				if v.Kind() != reflect.Slice {
-					return nil, fmt.Errorf("cannot encode binary array: expected []interface{}; received: %T", datum)
-				}
-				// NOTE: Two better alternatives to the current algorithm are:
-				//   (1) mutate the reflection tuple underneath to convert the
-				//       []int, for example, to []interface{}, with O(1) complexity
-				//   (2) use copy builtin to zip the data items over, much like
-				//       what gorrd does, with O(n) complexity, but more
-				//       efficient than what's below.
-				arrayValues = make([]interface{}, v.Len())
-				for idx := 0; idx < v.Len(); idx++ {
-					arrayValues[idx] = v.Index(idx).Interface()
-				}
+			arrayValues, err := convertArray(datum)
+			if err != nil {
+				return nil, fmt.Errorf("cannot encode binary array: %s", err)
 			}
 
 			arrayLength := int64(len(arrayValues))
@@ -170,12 +152,11 @@ func makeArrayCodec(st map[string]*Codec, enclosingNamespace string, schemaMap m
 			return nil, buf, io.ErrShortBuffer
 		},
 		textualFromNative: func(buf []byte, datum interface{}) ([]byte, error) {
-			arrayValues, ok := datum.([]interface{})
-			if !ok {
-				return nil, fmt.Errorf("cannot encode textual array: expected []interface{}; received: %T", datum)
+			arrayValues, err := convertArray(datum)
+			if err != nil {
+				return nil, fmt.Errorf("cannot encode textual array: %s", err)
 			}
 
-			var err error
 			var atLeastOne bool
 
 			buf = append(buf, '[')
@@ -198,4 +179,28 @@ func makeArrayCodec(st map[string]*Codec, enclosingNamespace string, schemaMap m
 			return append(buf, ']'), nil
 		},
 	}, nil
+}
+
+// convertArray converts datum to []interface{} if possible.
+func convertArray(datum interface{}) ([]interface{}, error) {
+	arrayValues, ok := datum.([]interface{})
+	if ok {
+		return arrayValues, nil
+	}
+	// NOTE: When given a slice of any other type, zip values to
+	// items as a convenience to client.
+	v := reflect.ValueOf(datum)
+	if v.Kind() != reflect.Slice {
+		return nil, fmt.Errorf("cannot create []interface{}: expected slice; received: %T", datum)
+	}
+	// NOTE: Two better alternatives to the current algorithm are:
+	//   (1) mutate the reflection tuple underneath to convert the
+	//       []int, for example, to []interface{}, with O(1) complexity
+	//   (2) use copy builtin to zip the data items over with O(n) complexity,
+	//       but more efficient than what's below.
+	arrayValues = make([]interface{}, v.Len())
+	for idx := 0; idx < v.Len(); idx++ {
+		arrayValues[idx] = v.Index(idx).Interface()
+	}
+	return arrayValues, nil
 }

@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"reflect"
 )
 
 func makeMapCodec(st map[string]*Codec, namespace string, schemaMap map[string]interface{}) (*Codec, error) {
@@ -88,9 +89,9 @@ func makeMapCodec(st map[string]*Codec, namespace string, schemaMap map[string]i
 			return mapValues, buf, nil
 		},
 		binaryFromNative: func(buf []byte, datum interface{}) ([]byte, error) {
-			mapValues, ok := datum.(map[string]interface{})
-			if !ok {
-				return nil, fmt.Errorf("cannot encode binary map: expected: map[string]interface{}; received: %T", datum)
+			mapValues, err := convertMap(datum)
+			if err != nil {
+				return nil, fmt.Errorf("cannot encode binary map: %s", err)
 			}
 
 			keyCount := int64(len(mapValues))
@@ -214,17 +215,16 @@ func genericMapTextDecoder(buf []byte, defaultCodec *Codec, codecFromKey map[str
 // codecFromKey is nil, every map value will be encoded using defaultCodec, if
 // possible.
 func genericMapTextEncoder(buf []byte, datum interface{}, defaultCodec *Codec, codecFromKey map[string]*Codec) ([]byte, error) {
-	valueMap, ok := datum.(map[string]interface{})
-	if !ok {
-		return nil, fmt.Errorf("cannot encode textual map: expected map[string]interface{}; received: %T", datum)
+	mapValues, err := convertMap(datum)
+	if err != nil {
+		return nil, fmt.Errorf("cannot encode textual map: %s", err)
 	}
 
-	var err error
 	var atLeastOne bool
 
 	buf = append(buf, '{')
 
-	for key, value := range valueMap {
+	for key, value := range mapValues {
 		atLeastOne = true
 
 		// Find a codec for the key
@@ -254,4 +254,34 @@ func genericMapTextEncoder(buf []byte, datum interface{}, defaultCodec *Codec, c
 		return append(buf[:len(buf)-1], '}'), nil
 	}
 	return append(buf, '}'), nil
+}
+
+// convertMap converts datum to map[string]interface{} if possible.
+func convertMap(datum interface{}) (map[string]interface{}, error) {
+	mapValues, ok := datum.(map[string]interface{})
+	if ok {
+		return mapValues, nil
+	}
+	// NOTE: When given a map of any other type, zip values to items as a
+	// convenience to client.
+	v := reflect.ValueOf(datum)
+	if v.Kind() != reflect.Map {
+		return nil, fmt.Errorf("cannot create map[string]interface{}: expected map[string]...; received: %T", datum)
+	}
+	// NOTE: Two better alternatives to the current algorithm are:
+	//   (1) mutate the reflection tuple underneath to convert the
+	//       map[string]int, for example, to map[string]interface{}, with
+	//       O(1) complexity.
+	//   (2) use copy builtin to zip the data items over with O(n) complexity,
+	//       but more efficient than what's below.
+	mapValues = make(map[string]interface{}, v.Len())
+	for _, key := range v.MapKeys() {
+		k, ok := key.Interface().(string)
+		if !ok {
+			// bail when map key type is not string
+			return nil, fmt.Errorf("cannot create map[string]interface{}: expected map[string]...; received: %T", datum)
+		}
+		mapValues[string(k)] = v.MapIndex(key).Interface()
+	}
+	return mapValues, nil
 }

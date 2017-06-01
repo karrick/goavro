@@ -62,10 +62,16 @@ func TestArrayReceiveSliceEmptyInterface(t *testing.T) {
 	testBinaryCodecPass(t, `{"type":"array","items":"boolean"}`, []interface{}{true, true}, []byte{4, 1, 1, 0})
 }
 
-func TestArrayReceiveSliceInt(t *testing.T) {
+func TestArrayBinaryReceiveSliceInt(t *testing.T) {
 	testBinaryCodecPass(t, `{"type":"array","items":"int"}`, []int{}, []byte{0})
 	testBinaryCodecPass(t, `{"type":"array","items":"int"}`, []int{1}, []byte("\x02\x02\x00"))
 	testBinaryCodecPass(t, `{"type":"array","items":"int"}`, []int{1, 2}, []byte("\x04\x02\x04\x00"))
+}
+
+func TestArrayTextualReceiveSliceInt(t *testing.T) {
+	testTextCodecPass(t, `{"type":"array","items":"int"}`, []int{}, []byte(`[]`))
+	testTextCodecPass(t, `{"type":"array","items":"int"}`, []int{1}, []byte(`[1]`))
+	testTextCodecPass(t, `{"type":"array","items":"int"}`, []int{1, 2}, []byte(`[1,2]`))
 }
 
 func TestArrayBytes(t *testing.T) {

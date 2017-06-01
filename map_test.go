@@ -1,6 +1,8 @@
 package goavro_test
 
 import (
+	"fmt"
+	"log"
 	"testing"
 
 	"github.com/karrick/goavro"
@@ -118,4 +120,41 @@ func TestMapTextCodecPass(t *testing.T) {
 	testTextCodecPass(t, schema, make(map[string]interface{}), []byte(`{}`)) // empty map
 	testTextEncodePass(t, schema, datum, []byte(`{"key1":"\u0001\u2318 "}`))
 	testTextDecodePass(t, schema, datum, []byte(` { "key1" : "\u0001\u2318 " }`))
+}
+
+func TestMapBinaryReceiveSliceInt(t *testing.T) {
+	testBinaryCodecPass(t, `{"type":"map","values":"int"}`, map[string]int{}, []byte("\x00"))
+	testBinaryCodecPass(t, `{"type":"map","values":"int"}`, map[string]int{"k1": 13}, []byte("\x02\x04k1\x1a\x00"))
+	testBinaryEncodeFail(t, `{"type":"map","values":"int"}`, map[int]int{42: 13}, "cannot create map[string]interface{}")
+}
+
+func TestMapTextualReceiveSliceInt(t *testing.T) {
+	testTextCodecPass(t, `{"type":"map","values":"int"}`, map[string]int{}, []byte(`{}`))
+	testTextCodecPass(t, `{"type":"map","values":"int"}`, map[string]int{"k1": 13}, []byte(`{"k1":13}`))
+	testTextEncodeFail(t, `{"type":"map","values":"int"}`, map[int]int{42: 13}, "cannot create map[string]interface{}")
+}
+
+func ExampleMap() {
+	codec, err := goavro.NewCodec(`{
+            "name": "r1",
+            "type": "record",
+            "fields": [{
+                "name": "f1",
+                "type": {"type":"map","values":"double"}
+            }]
+        }`)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	buf, err := codec.TextualFromNative(nil, map[string]interface{}{
+		"f1": map[string]float64{
+			"k1": 3.5,
+		},
+	})
+	if err != nil {
+		log.Fatal(err)
+	}
+	fmt.Println(string(buf))
+	// Output: {"f1":{"k1":3.5}}
 }
