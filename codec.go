@@ -179,7 +179,7 @@ func NewCodec(schemaSpecification string) (*Codec, error) {
 //         fmt.Printf("%#v", binary)
 //         // Output: []byte{0x2, 0x2, 0x0}
 //     }
-func (c Codec) BinaryFromNative(buf []byte, datum interface{}) ([]byte, error) {
+func (c *Codec) BinaryFromNative(buf []byte, datum interface{}) ([]byte, error) {
 	newBuf, err := c.binaryFromNative(buf, datum)
 	if err != nil {
 		return buf, err // if error, return original byte slice
@@ -218,7 +218,7 @@ func (c Codec) BinaryFromNative(buf []byte, datum interface{}) ([]byte, error) {
 //         fmt.Printf("%v", native)
 //         // Output: map[next:map[LongList:map[next:map[LongList:map[next:<nil>]]]]]
 //     }
-func (c Codec) NativeFromBinary(buf []byte) (interface{}, []byte, error) {
+func (c *Codec) NativeFromBinary(buf []byte) (interface{}, []byte, error) {
 	value, newBuf, err := c.nativeFromBinary(buf)
 	if err != nil {
 		return nil, buf, err // if error, return original byte slice
@@ -258,7 +258,7 @@ func (c Codec) NativeFromBinary(buf []byte) (interface{}, []byte, error) {
 //         fmt.Printf("%v", native)
 //         // Output: map[next:map[LongList:map[next:map[LongList:map[next:<nil>]]]]]
 //     }
-func (c Codec) NativeFromTextual(buf []byte) (interface{}, []byte, error) {
+func (c *Codec) NativeFromTextual(buf []byte) (interface{}, []byte, error) {
 	value, newBuf, err := c.nativeFromTextual(buf)
 	if err != nil {
 		return nil, buf, err // if error, return original byte slice
@@ -306,7 +306,7 @@ func (c Codec) NativeFromTextual(buf []byte) (interface{}, []byte, error) {
 //         fmt.Printf("%s", text)
 //         // Output: {"next":{"LongList":{"next":{"LongList":{"next":null}}}}}
 //     }
-func (c Codec) TextualFromNative(buf []byte, datum interface{}) ([]byte, error) {
+func (c *Codec) TextualFromNative(buf []byte, datum interface{}) ([]byte, error) {
 	newBuf, err := c.textualFromNative(buf, datum)
 	if err != nil {
 		return buf, err // if error, return original byte slice
@@ -325,7 +325,7 @@ func (c Codec) TextualFromNative(buf []byte, datum interface{}) ([]byte, error) 
 //         fmt.Println(codec.Schema())
 //         // Output: {"type":"map","values":{"name":"foo","type":"enum","symbols":["alpha","bravo"]}}
 //     }
-func (c Codec) Schema() string {
+func (c *Codec) Schema() string {
 	return c.schema
 }
 

@@ -112,12 +112,12 @@ func newNameFromSchemaMap(enclosingNamespace string, schemaMap map[string]interf
 	return newName(nameString, namespaceString, enclosingNamespace)
 }
 
-func (n name) String() string {
+func (n *name) String() string {
 	return n.fullName
 }
 
 // short returns the name without the prefixed namespace.
-func (n name) short() string {
+func (n *name) short() string {
 	if index := strings.LastIndexByte(n.fullName, '.'); index > -1 {
 		return n.fullName[index+1:]
 	}
