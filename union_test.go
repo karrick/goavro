@@ -3,6 +3,8 @@ package goavro_test
 import (
 	"bytes"
 	"fmt"
+	"math"
+	"strconv"
 	"testing"
 
 	"github.com/karrick/goavro"
@@ -161,4 +163,53 @@ func ExampleUnion() {
 	}
 	fmt.Println(string(buf))
 	// Output: {"string":"some string"}
+}
+
+func ExampleUnion3() {
+	// Imagine a record field with the following union type. I have seen this
+	// sort of type in many schemas. I have been told the reasoning behind it is
+	// when the writer desires to encode data to JSON that cannot be written as
+	// a JSON number, then to encode it as a string and allow the reader to
+	// parse the string accordingly.
+	codec, err := goavro.NewCodec(`["null","double","string"]`)
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	native, _, err := codec.NativeFromTextual([]byte(`{"string":"NaN"}`))
+	if err != nil {
+		fmt.Println(err)
+	}
+
+	value := math.NaN()
+	if native == nil {
+		fmt.Print("decoded null: ")
+	} else {
+		for k, v := range native.(map[string]interface{}) {
+			switch k {
+			case "double":
+				fmt.Print("decoded double: ")
+				value = v.(float64)
+			case "string":
+				fmt.Print("decoded string: ")
+				s := v.(string)
+				switch s {
+				case "NaN":
+					value = math.NaN()
+				case "+Infinity":
+					value = math.Inf(1)
+				case "-Infinity":
+					value = math.Inf(-1)
+				default:
+					var err error
+					value, err = strconv.ParseFloat(s, 64)
+					if err != nil {
+						fmt.Println(err)
+					}
+				}
+			}
+		}
+	}
+	fmt.Println(value)
+	// Output: decoded string: NaN
 }
