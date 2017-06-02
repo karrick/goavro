@@ -176,7 +176,7 @@ func (ocfr *OCFReader) Scan() bool {
 
 		switch ocfr.compression {
 		case CompressionNull:
-			//
+			// no-op
 
 		case CompressionDeflate:
 			// NOTE: flate.NewReader wraps with io.ByteReader if argument does
@@ -254,6 +254,12 @@ func (ocfr *OCFReader) Read() (interface{}, error) {
 	ocfr.remainingItems--
 
 	return datum, nil
+}
+
+// RemainingItems returns the number of items remaining in the block being
+// processed.
+func (ocfr *OCFReader) RemainingItems() int64 {
+	return ocfr.remainingItems
 }
 
 // Codec returns the codec found within the OCF file.
