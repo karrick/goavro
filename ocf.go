@@ -40,9 +40,11 @@ const (
 
 var (
 	// MaxBlockCount is the maximum number of data items allowed in a single
-	// binary block that will be decoded from a binary stream. This check is to
-	// ensure decoding binary data will not cause the library to over allocate
-	// RAM, potentially creating a denial of service on the system.
+	// block that will be decoded from a binary stream, whether when reading
+	// blocks to decode an array or a map, or when reading blocks from an OCF
+	// stream. This check is to ensure decoding binary data will not cause the
+	// library to over allocate RAM, potentially creating a denial of service on
+	// the system.
 	//
 	// If a particular application needs to decode binary Avro data that
 	// potentially has more data items in a single block, then this variable may
