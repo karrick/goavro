@@ -10,6 +10,7 @@ import (
 	"hash/crc32"
 	"io"
 	"io/ioutil"
+	"math"
 
 	"github.com/golang/snappy"
 )
@@ -369,6 +370,11 @@ func metadataBinaryReader(ior io.Reader) (map[string][]byte, error) {
 	}
 	blockCount := value.(int64)
 	if blockCount < 0 {
+		if blockCount == math.MinInt64 {
+			// The minimum number for any signed numerical type can never be
+			// made positive
+			return nil, fmt.Errorf("cannot decode binary map with block count: %d", math.MinInt64)
+		}
 		// NOTE: A negative block count implies there is a long encoded block
 		// size following the negative block count. We have no use for the block
 		// size in this decoder, so we read and discard the value.
@@ -412,6 +418,11 @@ func metadataBinaryReader(ior io.Reader) (map[string][]byte, error) {
 		}
 		blockCount = value.(int64)
 		if blockCount < 0 {
+			if blockCount == math.MinInt64 {
+				// The minimum number for any signed numerical type can never be
+				// made positive
+				return nil, fmt.Errorf("cannot decode binary map with block count: %d", math.MinInt64)
+			}
 			// NOTE: A negative block count implies there is a long encoded
 			// block size following the negative block count. We have no use for
 			// the block size in this decoder, so we read and discard the value.

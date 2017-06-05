@@ -38,6 +38,10 @@ func TestMapDecodeInitialBlockCountNegativeTooLarge(t *testing.T) {
 	testBinaryDecodeFail(t, `{"type":"map","values":"int"}`, append(moreNegativeThanMaxBlockCount, byte(0)), "block count")
 }
 
+func TestMapDecodeInitialBlockCountTooNegative(t *testing.T) {
+	testBinaryDecodeFail(t, `{"type":"map","values":"int"}`, append(mostNegativeBlockCount, byte(0)), "block count")
+}
+
 func TestMapDecodeNextBlockCountCannotDecode(t *testing.T) {
 	testBinaryDecodeFail(t, `{"type":"map","values":"int"}`, []byte{1, 2, 4, 'k', '1', 6}, "block count")
 }
@@ -81,6 +85,10 @@ func TestMapDecodeNextBlockCountTooLarge(t *testing.T) {
 
 func TestMapDecodeNextBlockCountNegativeTooLarge(t *testing.T) {
 	testBinaryDecodeFail(t, `{"type":"map","values":"int"}`, append(append([]byte{1, 2, 4, 'k', '1', 6}, moreNegativeThanMaxBlockCount...), 2), "block count")
+}
+
+func TestMapDecodeNextBlockCountTooNegative(t *testing.T) {
+	testBinaryDecodeFail(t, `{"type":"map","values":"int"}`, append(append([]byte{1, 2, 4, 'k', '1', 6}, mostNegativeBlockCount...), 2), "block count")
 }
 
 func TestMapDecodeFail(t *testing.T) {

@@ -3,12 +3,13 @@ package goavro_test
 import (
 	"bytes"
 	"fmt"
+	"math"
 	"testing"
 
 	"github.com/karrick/goavro"
 )
 
-var morePositiveThanMaxBlockCount, moreNegativeThanMaxBlockCount []byte
+var morePositiveThanMaxBlockCount, moreNegativeThanMaxBlockCount, mostNegativeBlockCount []byte
 
 func init() {
 	c, err := goavro.NewCodec("long")
@@ -22,6 +23,11 @@ func init() {
 	}
 
 	moreNegativeThanMaxBlockCount, err = c.BinaryFromNative(nil, -(goavro.MaxBlockCount + 1))
+	if err != nil {
+		panic(err)
+	}
+
+	mostNegativeBlockCount, err = c.BinaryFromNative(nil, math.MinInt64)
 	if err != nil {
 		panic(err)
 	}

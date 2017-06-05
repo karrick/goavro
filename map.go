@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"math"
 	"reflect"
 )
 
@@ -34,6 +35,11 @@ func makeMapCodec(st map[string]*Codec, namespace string, schemaMap map[string]i
 				// block size following the negative block count. We have no use
 				// for the block size in this decoder, so we read and discard
 				// the value.
+				if blockCount == math.MinInt64 {
+					// The minimum number for any signed numerical type can
+					// never be made positive
+					return nil, nil, fmt.Errorf("cannot decode binary map with block count: %d", math.MinInt64)
+				}
 				blockCount = -blockCount // convert to its positive equivalent
 				if _, buf, err = longNativeFromBinary(buf); err != nil {
 					return nil, nil, fmt.Errorf("cannot decode binary map block size: %s", err)
@@ -76,6 +82,11 @@ func makeMapCodec(st map[string]*Codec, namespace string, schemaMap map[string]i
 					// encoded block size following the negative block count. We
 					// have no use for the block size in this decoder, so we
 					// read and discard the value.
+					if blockCount == math.MinInt64 {
+						// The minimum number for any signed numerical type can
+						// never be made positive
+						return nil, nil, fmt.Errorf("cannot decode binary map with block count: %d", math.MinInt64)
+					}
 					blockCount = -blockCount // convert to its positive equivalent
 					if _, buf, err = longNativeFromBinary(buf); err != nil {
 						return nil, nil, fmt.Errorf("cannot decode binary map block size: %s", err)

@@ -107,6 +107,7 @@ func TestCrashers_OCF_e2e(t *testing.T) {
 			"\x00\x00\x00\x00\x00\x00\x11\"\t\x10\x90\x04\x16TEST_ST" +
 			"R123\x00\x04\x00\x02S\xfeJ\x17\u007f\xb4r\x11\x0e\x96&\x0e" +
 			"\xda<\xed\x86\xf6",
+		"map: initialSize overflow-2": "Obj\x01\xff\xff\xff\xff\xff\xff\xff\xff\xff\x010",
 		"array: initialSize overflow": "Obj\x01\x04\x14avro.codec\bnul" +
 			"l\x16avro.schema\xa2\x0e{\"typ" +
 			"e\":\"record\",\"name\":\"" +

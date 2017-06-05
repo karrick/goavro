@@ -32,6 +32,11 @@ func TestArrayDecodeInitialBlockCountNegativeTooLarge(t *testing.T) {
 	testBinaryDecodeFail(t, `{"type":"array","items":"int"}`, append(moreNegativeThanMaxBlockCount, byte(0)), "block count")
 }
 
+func TestArrayDecodeInitialBlockCountTooNegative(t *testing.T) {
+	// -(uint8(-128)) == -128
+	testBinaryDecodeFail(t, `{"type":"array","items":"int"}`, append(mostNegativeBlockCount, byte(0)), "block count")
+}
+
 func TestArrayDecodeNextBlockCountCannotDecode(t *testing.T) {
 	testBinaryDecodeFail(t, `{"type":"array","items":"int"}`, []byte{2, 6}, "block count")
 }
@@ -46,6 +51,10 @@ func TestArrayDecodeNextBlockCountTooLarge(t *testing.T) {
 
 func TestArrayDecodeNextBlockCountNegativeTooLarge(t *testing.T) {
 	testBinaryDecodeFail(t, `{"type":"array","items":"int"}`, append([]byte{2, 6}, append(moreNegativeThanMaxBlockCount, []byte{2, 6, 0}...)...), "block count")
+}
+
+func TestArrayDecodeNextBlockCountTooNegative(t *testing.T) {
+	testBinaryDecodeFail(t, `{"type":"array","items":"int"}`, append([]byte{2, 6}, append(mostNegativeBlockCount, []byte{2, 6, 0}...)...), "block count")
 }
 
 func TestArrayNull(t *testing.T) {
