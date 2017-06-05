@@ -293,18 +293,62 @@ func (ocfr *OCFReader) Schema() string {
 	return ocfr.schema
 }
 
-// longBinaryReader reads bytes from bufio.Reader until has complete long value,
-// or read error. It _could_ accept io.ByteReader interface, but receiving the
-// exact needed structure is faster.
-func longBinaryReader(br *bufio.Reader) (int64, error) {
+// bytesBinaryReader reads bytes from io.Reader and returns byte slice of
+// specified size or the error encountered while trying to read those bytes.
+func bytesBinaryReader(ior io.Reader) ([]byte, error) {
+	size, err := longBinaryReader(ior)
+	if err != nil {
+		return nil, fmt.Errorf("cannot read bytes: cannot read size: %s", err)
+	}
+	if size < 0 {
+		return nil, fmt.Errorf("cannot read bytes: size is negative: %d", size)
+	}
+	if size > MaxBlockSize {
+		return nil, fmt.Errorf("cannot read bytes: size exceeds MaxBlockSize: %d > %d", size, MaxBlockSize)
+	}
+	buf := make([]byte, size)
+	_, err = io.ReadAtLeast(ior, buf, int(size))
+	if err != nil {
+		return nil, fmt.Errorf("cannot read bytes: %s", err)
+	}
+	return buf, nil
+}
+
+// longBinaryReader reads bytes from io.Reader until has complete long value, or
+// read error.
+func longBinaryReader(ior io.Reader) (int64, error) {
 	var value uint64
 	var shift uint
-	var b byte
 	var err error
+	var b byte
+
+	// NOTE: While benchmarks show it's more performant to invoke ReadByte when
+	// available, testing whether a variable's data type implements a particular
+	// method is quite slow too. So perform the test once, and branch to the
+	// appropriate loop based on the results.
+
+	if byteReader, ok := ior.(io.ByteReader); ok {
+		for {
+			if b, err = byteReader.ReadByte(); err != nil {
+				return 0, err // NOTE: must send back unaltered error to detect io.EOF
+			}
+			value |= uint64(b&intMask) << shift
+			if b&intFlag == 0 {
+				return (int64(value>>1) ^ -int64(value&1)), nil
+			}
+			shift += 7
+		}
+	}
+
+	// NOTE: ior does not also implement io.ByteReader, so we must allocate a
+	// byte slice with a single byte, and read each byte into the slice.
+	buf := make([]byte, 1)
 	for {
-		if b, err = br.ReadByte(); err != nil {
+		// if b, err = byteReader.ReadByte(); err != nil {
+		if _, err = ior.Read(buf); err != nil {
 			return 0, err // NOTE: must send back unaltered error to detect io.EOF
 		}
+		b = buf[0]
 		value |= uint64(b&intMask) << shift
 		if b&intFlag == 0 {
 			return (int64(value>>1) ^ -int64(value&1)), nil
@@ -313,16 +357,15 @@ func longBinaryReader(br *bufio.Reader) (int64, error) {
 	}
 }
 
-// metadataBinaryReader reads bytes from bufio.Reader until has entire map
-// value, or read error. It _could_ accept io.Reader interface, but receiving
-// the exact needed structure is faster.
-func metadataBinaryReader(br *bufio.Reader) (map[string][]byte, error) {
+// metadataBinaryReader reads bytes from io.Reader until has entire map value,
+// or read error.
+func metadataBinaryReader(ior io.Reader) (map[string][]byte, error) {
 	var err error
 	var value interface{}
 
 	// block count and block size
-	if value, err = longBinaryReader(br); err != nil {
-		return nil, fmt.Errorf("cannot decode Map block count: %s", err)
+	if value, err = longBinaryReader(ior); err != nil {
+		return nil, fmt.Errorf("cannot decode binary map block count: %s", err)
 	}
 	blockCount := value.(int64)
 	if blockCount < 0 {
@@ -330,13 +373,13 @@ func metadataBinaryReader(br *bufio.Reader) (map[string][]byte, error) {
 		// size following the negative block count. We have no use for the block
 		// size in this decoder, so we read and discard the value.
 		blockCount = -blockCount // convert to its positive equivalent
-		if _, err = longBinaryReader(br); err != nil {
-			return nil, fmt.Errorf("cannot decode Map block size: %s", err)
+		if _, err = longBinaryReader(ior); err != nil {
+			return nil, fmt.Errorf("cannot decode binary map block size: %s", err)
 		}
 	}
 	// Ensure block count does not exceed some sane value.
 	if blockCount > MaxBlockCount {
-		return nil, fmt.Errorf("cannot decode Map when block count exceeds MaxBlockCount: %d > %d", blockCount, MaxBlockCount)
+		return nil, fmt.Errorf("cannot decode binary map when block count exceeds MaxBlockCount: %d > %d", blockCount, MaxBlockCount)
 	}
 	// NOTE: While the attempt of a RAM optimization shown below is not
 	// necessary, many encoders will encode all items in a single block.  We can
@@ -348,21 +391,24 @@ func metadataBinaryReader(br *bufio.Reader) (map[string][]byte, error) {
 		// Decode `blockCount` datum values from buffer
 		for i := int64(0); i < blockCount; i++ {
 			// first decode the key string
-			keyBytes, err := bytesBinaryReader(br)
+			keyBytes, err := bytesBinaryReader(ior)
 			if err != nil {
-				return nil, fmt.Errorf("cannot decode Map key: %s", err)
+				return nil, fmt.Errorf("cannot decode binary map key: %s", err)
 			}
 			key := string(keyBytes)
+			if _, ok := mapValues[key]; ok {
+				return nil, fmt.Errorf("cannot decode binary map: duplicate key: %q", key)
+			}
 			// metadata values are always bytes
-			buf, err := bytesBinaryReader(br)
+			buf, err := bytesBinaryReader(ior)
 			if err != nil {
-				return nil, fmt.Errorf("cannot decode Map value for key %q: %s", key, err)
+				return nil, fmt.Errorf("cannot decode binary map key %q value: %s", key, err)
 			}
 			mapValues[key] = buf
 		}
 		// Decode next blockCount from buffer, because there may be more blocks
-		if value, err = longBinaryReader(br); err != nil {
-			return nil, fmt.Errorf("cannot decode Map block count: %s", err)
+		if value, err = longBinaryReader(ior); err != nil {
+			return nil, fmt.Errorf("cannot decode map block count: %s", err)
 		}
 		blockCount = value.(int64)
 		if blockCount < 0 {
@@ -370,37 +416,14 @@ func metadataBinaryReader(br *bufio.Reader) (map[string][]byte, error) {
 			// block size following the negative block count. We have no use for
 			// the block size in this decoder, so we read and discard the value.
 			blockCount = -blockCount // convert to its positive equivalent
-			if _, err = longBinaryReader(br); err != nil {
-				return nil, fmt.Errorf("cannot decode Map block size: %s", err)
+			if _, err = longBinaryReader(ior); err != nil {
+				return nil, fmt.Errorf("cannot decode map block size: %s", err)
 			}
 		}
 		// Ensure block count does not exceed some sane value.
 		if blockCount > MaxBlockCount {
-			return nil, fmt.Errorf("cannot decode Map when block count exceeds MaxBlockCount: %d > %d", blockCount, MaxBlockCount)
+			return nil, fmt.Errorf("cannot decode binary map when block count exceeds MaxBlockCount: %d > %d", blockCount, MaxBlockCount)
 		}
 	}
 	return mapValues, nil
-}
-
-// bytesBinaryReader reads bytes from bufio.Reader and returns byte slice of
-// specified size or the error encountered while trying to read those bytes. It
-// _could_ accept io.Reader interface, but receiving the exact needed structure
-// is faster.
-func bytesBinaryReader(br *bufio.Reader) ([]byte, error) {
-	size, err := longBinaryReader(br)
-	if err != nil {
-		return nil, fmt.Errorf("cannot read bytes size: %s", err)
-	}
-	if size < 0 {
-		return nil, fmt.Errorf("cannot read bytes: size is negative: %d", size)
-	}
-	if size > MaxBlockSize {
-		return nil, fmt.Errorf("cannot read bytes: size exceeds MaxBlockSize: %d > %d", size, MaxBlockSize)
-	}
-	buf := make([]byte, size)
-	_, err = io.ReadAtLeast(br, buf, int(size))
-	if err != nil {
-		return nil, fmt.Errorf("cannot read bytes: %s", err)
-	}
-	return buf, nil
 }
