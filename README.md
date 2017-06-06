@@ -57,7 +57,7 @@ func main() {
 	textual := []byte(`{"next":{"LongList":{}}}`)
 
 	// Convert textual Avro data (in Avro JSON format) to native Go form
-	native, _, err := codec.NativeFromText(textual)
+	native, _, err := codec.NativeFromTextual(textual)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -75,7 +75,7 @@ func main() {
 	}
 
 	// Convert native Go form to textual Avro data
-	textual, err = codec.TextFromNative(nil, native)
+	textual, err = codec.TextualFromNative(nil, native)
 	if err != nil {
 		fmt.Println(err)
 	}
@@ -101,8 +101,8 @@ slices of the binary Avro representation:
 The following methods convert data between native Go data and byte
 slices of the textual Avro representation:
 
-    NativeFromText
-    TextFromNative
+    NativeFromTextual
+    TextualFromNative
 
 Each `Codec` also exposes the `Schema` method to return a simplified
 version of the JSON schema string used to create the `Codec`.
