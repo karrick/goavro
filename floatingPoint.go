@@ -270,13 +270,13 @@ func floatingTextEncoder(buf []byte, datum interface{}, bitSize int) ([]byte, er
 
 	if isFloat {
 		if math.IsNaN(someFloat64) {
-			return append(buf, []byte("null")...), nil
+			return append(buf, "null"...), nil
 		}
 		if math.IsInf(someFloat64, 1) {
-			return append(buf, []byte("1e999")...), nil
+			return append(buf, "1e999"...), nil
 		}
 		if math.IsInf(someFloat64, -1) {
-			return append(buf, []byte("-1e999")...), nil
+			return append(buf, "-1e999"...), nil
 		}
 		return strconv.AppendFloat(buf, someFloat64, 'g', -1, bitSize), nil
 	}
