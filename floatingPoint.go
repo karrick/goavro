@@ -58,7 +58,9 @@ func doubleBinaryFromNative(buf []byte, datum interface{}) ([]byte, error) {
 	default:
 		return nil, fmt.Errorf("cannot encode binary double: expected: Go numeric; received: %T", datum)
 	}
-	return floatingBinaryEncoder(buf, uint64(math.Float64bits(value)), doubleEncodedLength)
+	buf = append(buf, 0, 0, 0, 0, 0, 0, 0, 0)
+	binary.LittleEndian.PutUint64(buf[len(buf)-doubleEncodedLength:], math.Float64bits(value))
+	return buf, nil
 }
 
 func floatBinaryFromNative(buf []byte, datum interface{}) ([]byte, error) {
@@ -86,15 +88,9 @@ func floatBinaryFromNative(buf []byte, datum interface{}) ([]byte, error) {
 	default:
 		return nil, fmt.Errorf("cannot encode binary float: expected: Go numeric; received: %T", datum)
 	}
-	return floatingBinaryEncoder(buf, uint64(math.Float32bits(value)), floatEncodedLength)
-}
-
-// used by both floatBinaryEncoder and doubleBinaryEncoder
-func floatingBinaryEncoder(buf []byte, bits uint64, byteCount int) ([]byte, error) {
-	for i := 0; i < byteCount; i++ {
-		buf = append(buf, byte(bits&255))
-		bits = bits >> 8
-	}
+	// return floatingBinaryEncoder(buf, uint64(math.Float32bits(value)), floatEncodedLength)
+	buf = append(buf, 0, 0, 0, 0)
+	binary.LittleEndian.PutUint32(buf[len(buf)-floatEncodedLength:], uint32(math.Float32bits(value)))
 	return buf, nil
 }
 
