@@ -75,7 +75,7 @@ func headerFromReader(ior io.Reader, prefix string) error {
 	fmt.Printf("%sCompression Algorithm (avro.codec): %q\n", prefix, ocfr.CompressionName())
 
 	if *showSchema {
-		fmt.Printf("%sSchema (avro.schema):\n%s\n", prefix, ocfr.Schema())
+		fmt.Printf("%sSchema (avro.schema):\n%s\n", prefix, ocfr.Codec().Schema())
 	}
 
 	if !*showCount {

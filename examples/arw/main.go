@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"io"
@@ -11,16 +12,24 @@ import (
 	"github.com/karrick/goavro"
 )
 
-func usage() {
+func bail(err error) {
+	fmt.Fprintf(os.Stderr, "%s\n", err)
+	os.Exit(1)
+}
+
+func usage(err error) {
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "%s\n", err)
+	}
 	executable, err := os.Executable()
 	if err != nil {
 		executable = os.Args[0]
 	}
 	base := filepath.Base(executable)
 	fmt.Fprintf(os.Stderr, "Usage of %s:\n", base)
-	fmt.Fprintf(os.Stderr, "\t%s [-v] [-summary] [-bc N] [-compression null|deflate|snappy] [-schema new-schema.avsc] [from-file to-file]\n", base)
-	fmt.Fprintf(os.Stderr, "\tAs a special case, when there are no filename arguments, %s will read\n", base)
-	fmt.Fprintf(os.Stderr, "\tfrom its standard input and write to its standard output.\n")
+	fmt.Fprintf(os.Stderr, "\t%s [-v] [-summary] [-bc N] [-compression null|deflate|snappy] [-schema new-schema.avsc] source.avro destination.avro\n", base)
+	fmt.Fprintf(os.Stderr, "\tWhen source.avro pathname is hyphen, %s will read from its standard input.\n", base)
+	fmt.Fprintf(os.Stderr, "\tWhen destination.avro pathname is hyphen, %s will write to its standard output.\n", base)
 	flag.PrintDefaults()
 	os.Exit(2)
 }
@@ -32,9 +41,9 @@ var (
 )
 
 func init() {
-	compressionName = flag.String("compression", "", "compression codec ('null', 'deflate', 'snappy'; default: use existing compression)")
-	blockCount = flag.Int("bc", 0, "max count of items in each block (default: zero implies no limit)")
-	schemaPathname = flag.String("schema", "", "pathname to new schema (default: use existing schema)")
+	compressionName = flag.String("compression", "", "compression codec ('null', 'deflate', 'snappy'; default: use source compression)")
+	blockCount = flag.Int("bc", 0, "max count of items in each block (default: use source block boundaries)")
+	schemaPathname = flag.String("schema", "", "pathname to new schema (default: use source schema)")
 	summary = flag.Bool("summary", false, "print summary information to stderr")
 	verbose = flag.Bool("v", false, "print verbose information to stderr (implies: -summary)")
 }
@@ -42,47 +51,36 @@ func init() {
 func main() {
 	flag.Parse()
 
+	if count := len(flag.Args()); count != 2 {
+		usage(fmt.Errorf("wrong number of arguments: %d", count))
+	}
+
 	if *blockCount < 0 {
-		bail(fmt.Errorf("count must be greater or equal to 0: %d", *blockCount))
+		usage(fmt.Errorf("count must be greater or equal to 0: %d", *blockCount))
 	}
 
 	if *verbose {
 		*summary = true
 	}
 
+	var err error
 	var fromF io.ReadCloser
 	var toF io.WriteCloser
-	var err error
 
-	switch len(flag.Args()) {
-	case 0:
+	if srcPathname := flag.Arg(0); srcPathname == "-" {
 		stat, err := os.Stdin.Stat()
 		if err != nil {
 			bail(err)
 		}
 		if (stat.Mode() & os.ModeCharDevice) != 0 {
-			usage()
+			usage(errors.New("cannot read from standard input when connected to terminal"))
 		}
+		fromF = os.Stdin
 		if *summary {
 			fmt.Fprintf(os.Stderr, "reading from stdin\n")
 		}
-		stat, err = os.Stdout.Stat()
-		if err != nil {
-			bail(err)
-		}
-		if (stat.Mode() & os.ModeCharDevice) != 0 {
-			usage()
-		}
-		if *summary {
-			fmt.Fprintf(os.Stderr, "writing to stdout\n")
-		}
-		fromF = os.Stdin
-		toF = os.Stdout
-	case 2:
-		if *summary {
-			fmt.Fprintf(os.Stderr, "reading from %s\n", flag.Arg(0))
-		}
-		fromF, err = os.Open(flag.Arg(0))
+	} else {
+		fromF, err = os.Open(srcPathname)
 		if err != nil {
 			bail(err)
 		}
@@ -91,8 +89,28 @@ func main() {
 				bail(err)
 			}
 		}(fromF)
+		if *summary {
+			fmt.Fprintf(os.Stderr, "reading from %s\n", flag.Arg(0))
+		}
+	}
 
-		toF, err = os.Create(flag.Arg(1))
+	if destPathname := flag.Arg(1); destPathname == "-" {
+		stat, err := os.Stdout.Stat()
+		if err != nil {
+			bail(err)
+		}
+		// if *verbose { // DEBUG
+		// 	fmt.Fprintf(os.Stderr, "standard output mode: %v\n", stat.Mode())
+		// }
+		if (stat.Mode() & os.ModeCharDevice) != 0 {
+			usage(errors.New("cannot send to standard output when connected to terminal"))
+		}
+		toF = os.Stdout
+		if *summary {
+			fmt.Fprintf(os.Stderr, "writing to stdout\n")
+		}
+	} else {
+		toF, err = os.Create(destPathname)
 		if err != nil {
 			bail(err)
 		}
@@ -104,8 +122,6 @@ func main() {
 		if *summary {
 			fmt.Fprintf(os.Stderr, "writing to %s\n", flag.Arg(1))
 		}
-	default:
-		usage()
 	}
 
 	// NOTE: Convert fromF to OCFReader
@@ -114,22 +130,9 @@ func main() {
 		bail(err)
 	}
 
-	compression := ocfr.CompressionID()
-
 	inputCompressionName := ocfr.CompressionName()
 	outputCompressionName := inputCompressionName
-
 	if *compressionName != "" {
-		switch *compressionName {
-		case goavro.CompressionNullLabel:
-			compression = goavro.CompressionNull
-		case goavro.CompressionDeflateLabel:
-			compression = goavro.CompressionDeflate
-		case goavro.CompressionSnappyLabel:
-			compression = goavro.CompressionSnappy
-		default:
-			bail(fmt.Errorf("unsupported compression codec: %s", *compressionName))
-		}
 		outputCompressionName = *compressionName
 	}
 
@@ -139,22 +142,22 @@ func main() {
 	}
 
 	// NOTE: Either use schema from reader, or attempt to use new schema
-	var newSchema string
+	var outputSchema string
 	if *schemaPathname == "" {
-		newSchema = ocfr.Schema()
+		outputSchema = ocfr.Codec().Schema()
 	} else {
 		schemaBytes, err := ioutil.ReadFile(*schemaPathname)
 		if err != nil {
 			bail(err)
 		}
-		newSchema = string(schemaBytes)
+		outputSchema = string(schemaBytes)
 	}
 
 	// NOTE: Convert toF to OCFWriter
-	ocfw, err := goavro.NewOCFWriter(goavro.OCFWriterConfig{
-		W:           toF,
-		Compression: compression,
-		Schema:      newSchema,
+	ocfw, err := goavro.NewOCFWriter(goavro.OCFConfig{
+		W:               toF,
+		CompressionName: outputCompressionName,
+		Schema:          outputSchema,
 	})
 	if err != nil {
 		bail(err)
@@ -182,7 +185,7 @@ func transcode(from *goavro.OCFReader, to *goavro.OCFWriter) error {
 		itemsRead++
 		block = append(block, datum)
 
-		endOfBlock := from.RemainingItems() == 0
+		endOfBlock := from.RemainingBlockItems() == 0
 		if endOfBlock {
 			blocksRead++
 			if *verbose {
@@ -230,9 +233,4 @@ func writeBlock(to *goavro.OCFWriter, block []interface{}) error {
 		fmt.Fprintf(os.Stderr, "writing block with %d items\n", len(block))
 	}
 	return to.Append(block)
-}
-
-func bail(err error) {
-	fmt.Fprintf(os.Stderr, "%s\n", err)
-	os.Exit(1)
 }

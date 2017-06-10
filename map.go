@@ -68,7 +68,7 @@ func makeMapCodec(st map[string]*Codec, namespace string, schemaMap map[string]i
 					}
 					// then decode the value
 					if value, buf, err = valueCodec.nativeFromBinary(buf); err != nil {
-						return nil, nil, fmt.Errorf("cannot decode binary map key %q value: %s", key, err)
+						return nil, nil, fmt.Errorf("cannot decode binary map value for key %q: %s", key, err)
 					}
 					mapValues[key] = value
 				}

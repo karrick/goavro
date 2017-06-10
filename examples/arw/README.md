@@ -41,5 +41,9 @@ to encode and write the destination Avro file using the newly provided
 schema. If an item fails to encode using the new schema, the process
 will be aborted and an error message will be provided.
 
+If `source.avro` is a hyphen character, `-`, then `arw` will read from
+standard input.  If `destination.avro` is a hyphen character, then
+`arw` will write to standard output.
+
 Invoking `arw` without any of the options simply copies the OCF file,
 verifying the contents of the data along the way.

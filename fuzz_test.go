@@ -390,9 +390,9 @@ func TestCrashers_OCF_e2e(t *testing.T) {
 
 		b := new(bytes.Buffer)
 		ocfw, err := NewOCFWriter(
-			OCFWriterConfig{
+			OCFConfig{
 				W:      b,
-				Schema: ocfr.Schema(),
+				Schema: ocfr.Codec().Schema(),
 			})
 		if err != nil {
 			panic(err)

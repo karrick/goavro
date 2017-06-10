@@ -4,150 +4,181 @@ import (
 	"bytes"
 	"compress/flate"
 	"encoding/binary"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"hash/crc32"
 	"io"
-	"math/rand"
-	"time"
+	"io/ioutil"
+	"os"
 
 	"github.com/golang/snappy"
 )
 
-// OCFWriterConfig is used to specify creation parameters for OCFWriter.
-type OCFWriterConfig struct {
-	// W specifies the io.Writer to send the encode the data, (required).
+// OCFConfig is used to specify creation parameters for OCFWriter.
+type OCFConfig struct {
+	// W specifies the `io.Writer` to which to send the encoded data,
+	// (required). If W is `*os.File`, then creating an OCF for writing will
+	// attempt to read any existing OCF header and use the schema and
+	// compression codec specified by the existing header, then advance the file
+	// position to the tail end of the file for appending.
 	W io.Writer
 
-	// Schema specifies the Avro schema for the data to be encoded, (required).
+	// Codec specifies the Codec to use for the new OCFWriter, (optional). If
+	// the W parameter above is an `*os.File` which contains a Codec, the Codec
+	// in the existing file will be used instead. Otherwise if this Codec
+	// parameter is specified, it will be used. If neither the W parameter above
+	// is an `*os.File` with an existing Codec, nor this Codec parameter is
+	// specified, the OCFWriter will create a new Codec from the schema string
+	// specified by the Schema parameter below.
+	Codec *Codec
+
+	// Schema specifies the Avro schema for the data to be encoded, (optional).
+	// If neither the W parameter above is an `*os.File` with an existing Codec,
+	// nor the Codec parameter above is specified, the OCFWriter will create a
+	// new Codec from the schema string specified by this Schema parameter.
 	Schema string
 
-	// Codec specifies the compression codec used, (optional). If omitted,
-	// defaults to "null" codec.
-	Compression Compression
+	// CompressionName specifies the compression codec used, (optional). If
+	// omitted, defaults to "null" codec. When appending to an existing OCF,
+	// this field is ignored.
+	CompressionName string
 }
 
-// OCFWriter is used to create an Avro Object Container File (OCF).
+// OCFWriter is used to create a new or append to an existing Avro Object
+// Container File (OCF).
 type OCFWriter struct {
-	iow         io.Writer
-	codec       *Codec
-	syncMarker  []byte
-	compression Compression
+	header *ocfHeader
+	err    error
+	iow    io.Writer
 }
 
-// NewOCFWriter returns a newly created OCFWriter which may be used to create an
-// Avro Object Container File (OCF).
-func NewOCFWriter(config OCFWriterConfig) (*OCFWriter, error) {
-	if config.W == nil {
-		return nil, errors.New("cannot create OCFWriter without io.WriteCloser: IOW")
-	}
-	if config.Schema == "" {
-		return nil, errors.New("cannot create OCFWriter without Schema")
-	}
-
-	ocfw := &OCFWriter{iow: config.W}
-
-	var avroCodec string
-	switch config.Compression {
-	case CompressionNull:
-		avroCodec = CompressionNullLabel
-	case CompressionDeflate:
-		avroCodec = CompressionDeflateLabel
-		ocfw.compression = CompressionDeflate
-	case CompressionSnappy:
-		avroCodec = CompressionSnappyLabel
-		ocfw.compression = CompressionSnappy
-	default:
-		return nil, fmt.Errorf("cannot compress using unrecognized compression algorithm: %d", config.Compression)
-	}
-
+func NewOCFWriter(config OCFConfig) (*OCFWriter, error) {
 	var err error
-	ocfw.codec, err = NewCodec(config.Schema)
-	if err != nil {
-		return nil, err
+	ocf := &OCFWriter{iow: config.W}
+
+	switch config.W.(type) {
+	case nil:
+		return nil, errors.New("cannot create OCFWriter when W is nil")
+	case *os.File:
+		file := config.W.(*os.File)
+		stat, err := file.Stat()
+		if err != nil {
+			return nil, fmt.Errorf("cannot create OCFWriter: %s", err)
+		}
+		// NOTE: When upstream provides a new file, it will already exist but
+		// have a size of 0 bytes.
+		if stat.Size() > 0 {
+			// attempt to read existing OCF header
+			if ocf.header, err = readOCFHeader(file); err != nil {
+				return nil, fmt.Errorf("cannot create OCFWriter: %s", err)
+			}
+			// prepare for appending data to existing OCF
+			if err = ocf.quickScanToTail(file); err != nil {
+				return nil, fmt.Errorf("cannot create OCFWriter: %s", err)
+			}
+			return ocf, nil // happy case for appending to existing OCF
+		}
 	}
 
-	avroSchema, err := compactSchema(config.Schema)
-	if err != nil {
-		// this error is not expected, because NewCodec above already vetted
-		// schema
-		return nil, err
+	// create new OCF header based on configuration parameters
+	if ocf.header, err = newOCFHeader(config); err != nil {
+		return nil, fmt.Errorf("cannot create OCFWriter: %s", err)
 	}
-
-	// Create buffer for OCF header.  First 4 bytes are magic, and we'll use
-	// copy to fill them in, so initialize buffer's length with 4, and its
-	// capacity equal to length of avro schema plus a constant.
-	buf := make([]byte, 4, len(avroSchema)+48) // OCF header is usually about 48 bytes longer than its compressed schema
-	_ = copy(buf, magicBytes)
-
-	// file metadata, including the schema
-	hm := map[string]interface{}{"avro.schema": []byte(avroSchema), "avro.codec": []byte(avroCodec)}
-	buf, err = metadataCodec.BinaryFromNative(buf, hm)
-	if err != nil {
-		return nil, err
+	if err = writeOCFHeader(ocf.header, config.W); err != nil {
+		return nil, fmt.Errorf("cannot create OCFWriter: %s", err)
 	}
+	return ocf, nil // another happy case for creation of new OCF
+}
 
-	// The 16-byte, randomly-generated sync marker for this file.
-	r := rand.New(rand.NewSource(time.Now().Unix()))
-	ocfw.syncMarker = make([]byte, syncLength)
-	for i := 0; i < syncLength; i++ {
-		ocfw.syncMarker[i] = byte(r.Intn(256))
+// quickScanToTail advances the stream reader to the tail end of the
+// file. Rather than reading each encoded block, optionally decompressing it,
+// and then decoding it, this method reads the block count, ignoring it, then
+// reads the block size, then skips ahead to the followig block. It does this
+// repeatedly until attempts to read the file return io.EOF.
+func (ocfw *OCFWriter) quickScanToTail(ior io.Reader) error {
+	sync := make([]byte, ocfSyncLength)
+	for {
+		// Read and validate block count
+		blockCount, err := longBinaryReader(ior)
+		if err != nil {
+			if err == io.EOF {
+				return nil // merely end of file, rather than error
+			}
+			return fmt.Errorf("cannot read block count: %s", err)
+		}
+		if blockCount <= 0 {
+			return fmt.Errorf("cannot read when block count is not greater than 0: %d", blockCount)
+		}
+		if blockCount > MaxBlockCount {
+			return fmt.Errorf("cannot read when block count exceeds MaxBlockCount: %d > %d", blockCount, MaxBlockCount)
+		}
+		// Read block size
+		blockSize, err := longBinaryReader(ior)
+		if err != nil {
+			return fmt.Errorf("cannot read block size: %s", err)
+		}
+		if blockSize <= 0 {
+			return fmt.Errorf("cannot read when block size is not greater than 0: %d", blockSize)
+		}
+		if blockSize > MaxBlockSize {
+			return fmt.Errorf("cannot read when block size exceeds MaxBlockSize: %d > %d", blockSize, MaxBlockSize)
+		}
+		// Advance reader to end of block
+		if _, err = io.CopyN(ioutil.Discard, ior, blockSize); err != nil {
+			return fmt.Errorf("cannot seek to next block: %s", err)
+		}
+		// Read and validate sync marker
+		var n int
+		if n, err = io.ReadFull(ior, sync); err != nil {
+			return fmt.Errorf("cannot read sync marker: read %d out of %d bytes: %s", n, ocfSyncLength, err)
+		}
+		if !bytes.Equal(sync, ocfw.header.syncMarker) {
+			return fmt.Errorf("sync marker mismatch: %v != %v", sync, ocfw.header.syncMarker)
+		}
 	}
-	buf = append(buf, ocfw.syncMarker...)
-
-	// emit OCF header
-	_, err = ocfw.iow.Write(buf)
-	if err != nil {
-		return nil, err
-	}
-
-	return ocfw, nil
 }
 
 // Append appends one or more data items to an OCF file in a block. If there are
 // more data items in the slice than MaxBlockCount allows, the data slice will
 // be chunked into multiple blocks, each not having more than MaxBlockCount
 // items.
-func (ocf *OCFWriter) Append(data []interface{}) error {
+func (ocfw *OCFWriter) Append(data interface{}) error {
+	arrayValues, err := convertArray(data)
+	if err != nil {
+		return err
+	}
+
 	// Chunk data so no block has more than MaxBlockCount items.
-	for int64(len(data)) > MaxBlockCount {
-		if err := ocf.appendDataIntoBlock(data[:MaxBlockCount]); err != nil {
+	for int64(len(arrayValues)) > MaxBlockCount {
+		if err := ocfw.appendDataIntoBlock(arrayValues[:MaxBlockCount]); err != nil {
 			return err
 		}
-		data = data[MaxBlockCount:]
+		arrayValues = arrayValues[MaxBlockCount:]
 	}
-	return ocf.appendDataIntoBlock(data)
+	return ocfw.appendDataIntoBlock(arrayValues)
 }
 
-func (ocf *OCFWriter) appendDataIntoBlock(data []interface{}) error {
-	// This check ought not be needed because this method is only called from
-	// Append method, which chunks data into blocks that do not exceed
-	// MaxBlockCount items.
-	if datalen := int64(len(data)); datalen > MaxBlockCount {
-		panic(fmt.Errorf("cannot encode data with more items than MaxBlockCount: %d > %d", datalen, MaxBlockCount))
-	}
-
+func (ocfw *OCFWriter) appendDataIntoBlock(data []interface{}) error {
 	var block []byte // working buffer for encoding data values
 	var err error
 
 	// Encode and concatenate each data item into the block
 	for _, datum := range data {
-		if block, err = ocf.codec.BinaryFromNative(block, datum); err != nil {
-			return err
+		if block, err = ocfw.header.codec.BinaryFromNative(block, datum); err != nil {
+			return fmt.Errorf("cannot translate datum to binary: %v; %s", datum, err)
 		}
 	}
 
-	switch ocf.compression {
-	case CompressionNull:
+	switch ocfw.header.compressionID {
+	case compressionNull:
 		// no-op
 
-	case CompressionDeflate:
+	case compressionDeflate:
 		// compress into new bytes buffer.
 		bb := bytes.NewBuffer(make([]byte, 0, len(block)))
 
-		// Writing bytes to cw will compress bytes and send to bb.
 		cw, _ := flate.NewWriter(bb, flate.DefaultCompression)
+		// writing bytes to cw will compress bytes and send to bb.
 		if _, err := cw.Write(block); err != nil {
 			return err
 		}
@@ -156,40 +187,51 @@ func (ocf *OCFWriter) appendDataIntoBlock(data []interface{}) error {
 		}
 		block = bb.Bytes()
 
-	case CompressionSnappy:
+	case compressionSnappy:
 		compressed := snappy.Encode(nil, block)
 
 		// OCF requires snappy to have CRC32 checksum after each snappy block
-		compressed = append(compressed, []byte{0, 0, 0, 0}...)                                // expand slice so checksum will fit
+		compressed = append(compressed, 0, 0, 0, 0)                                           // expand slice by 4 bytes so checksum will fit
 		binary.BigEndian.PutUint32(compressed[len(compressed)-4:], crc32.ChecksumIEEE(block)) // checksum of decompressed block
 
 		block = compressed
 
 	default:
-		return fmt.Errorf("cannot compress block using unrecognized compression: %d", ocf.compression)
+		return fmt.Errorf("should not get here: cannot compress block using unrecognized compression: %d", ocfw.header.compressionID)
+
 	}
 
 	// create file data block
-	buf, _ := longBinaryFromNative(nil, len(data)) // block count (number of data items)
-	buf, _ = longBinaryFromNative(buf, len(block)) // block size (number of bytes in block)
-	buf = append(buf, block...)                    // serialized objects
-	buf = append(buf, ocf.syncMarker...)           // sync marker
+	buf := make([]byte, 0, len(block)+ocfBlockConst) // pre-allocate block bytes
+	buf, _ = longBinaryFromNative(buf, len(data))    // block count (number of data items)
+	buf, _ = longBinaryFromNative(buf, len(block))   // block size (number of bytes in block)
+	buf = append(buf, block...)                      // serialized objects
+	buf = append(buf, ocfw.header.syncMarker...)     // sync marker
 
-	_, err = ocf.iow.Write(buf)
+	_, err = ocfw.iow.Write(buf)
 	return err
 }
 
-// compactSchema returns the compacted schema for the header file
-func compactSchema(schema string) (string, error) {
-	// first: decode JSON
-	var schemaBlob interface{}
-	if err := json.Unmarshal([]byte(schema), &schemaBlob); err != nil {
-		return "", fmt.Errorf("cannot unmarshal schema: %v", err)
+// Codec returns the codec used by OCFWriter. This function provided because
+// upstream may be appending to existing OCF which uses a different schema than
+// requested during instantiation.
+func (ocfw *OCFWriter) Codec() *Codec {
+	return ocfw.header.codec
+}
+
+// CompressionName returns the name of the compression algorithm used by
+// OCFWriter. This function provided because upstream may be appending to
+// existing OCF which uses a different compression algorithm than requested
+// during instantiation.  the OCF file.
+func (ocfw *OCFWriter) CompressionName() string {
+	switch ocfw.header.compressionID {
+	case compressionNull:
+		return CompressionNullLabel
+	case compressionDeflate:
+		return CompressionDeflateLabel
+	case compressionSnappy:
+		return CompressionSnappyLabel
+	default:
+		return "should not get here: unrecognized compression algorithm"
 	}
-	// second: re-encode into compressed JSON
-	compact, err := json.Marshal(schemaBlob)
-	if err != nil {
-		return "", fmt.Errorf("cannot marshal schema: %s", err)
-	}
-	return string(compact), nil
 }

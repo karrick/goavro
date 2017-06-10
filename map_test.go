@@ -98,7 +98,7 @@ func TestMapDecodeFail(t *testing.T) {
 	testBinaryDecodeFail(t, schema, []byte("\x02\x04"), "cannot decode binary map key")
 	testBinaryDecodeFail(t, schema, []byte("\x02\x04"), "cannot decode binary map key")
 	testBinaryDecodeFail(t, schema, []byte("\x02\x04a"), "cannot decode binary map key")
-	testBinaryDecodeFail(t, schema, []byte("\x02\x04ab"), `cannot decode binary map key "ab" value`)
+	testBinaryDecodeFail(t, schema, []byte("\x02\x04ab"), `cannot decode binary map value for key "ab"`)
 	testBinaryDecodeFail(t, schema, []byte("\x02\x04ab\x02"), "boolean: expected")
 	testBinaryDecodeFail(t, schema, []byte("\x02\x04ab\x01"), "cannot decode binary map block count") // trailing block count
 	testBinaryDecodeFail(t, schema, []byte("\x04\x04ab\x00\x04ab\x00\x00"), "duplicate key")

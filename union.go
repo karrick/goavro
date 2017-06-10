@@ -8,6 +8,25 @@ import (
 
 // Union wraps a datum value in a map for encoding as a Union, as required by
 // Union encoder.
+//
+// When providing a value for an Avro union, the encoder will accept `nil` for a
+// `null` value. If the value is non-`nil`, it must be a
+// `map[string]interface{}` with a single key-value pair, where the key is the
+// Avro type name and the value is the datum's value. As a convenience, the
+// `Union` function wraps any datum value in a map as specified above.
+//
+//     func ExampleUnion() {
+//        codec, err := goavro.NewCodec(`["null","string","int"]`)
+//        if err != nil {
+//            fmt.Println(err)
+//        }
+//        buf, err := codec.TextFromNative(nil, goavro.Union("string", "some string"))
+//        if err != nil {
+//            fmt.Println(err)
+//        }
+//        fmt.Println(string(buf))
+//        // Output: {"string":"some string"}
+//     }
 func Union(name string, datum interface{}) interface{} {
 	if datum == nil && name == "null" {
 		return nil

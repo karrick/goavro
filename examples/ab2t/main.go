@@ -1,28 +1,57 @@
 package main
 
 import (
+	"bufio"
+	"flag"
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"sync"
 
 	"github.com/karrick/goavro"
 )
 
+func usage() {
+	executable, err := os.Executable()
+	if err != nil {
+		executable = os.Args[0]
+	}
+	base := filepath.Base(executable)
+	fmt.Fprintf(os.Stderr, "Usage of %s:\n", base)
+	fmt.Fprintf(os.Stderr, "\t%s [file1.avro [file2.avro [file3.avro]]]\n", base)
+	fmt.Fprintf(os.Stderr, "\tWhen filename is hyphen, %s will read from its standard input.\n", base)
+	flag.PrintDefaults()
+	os.Exit(2)
+}
+
 func main() {
 	args := os.Args[1:]
 	if len(args) == 0 {
-		if err := dumpFromReader(os.Stdin); err != nil {
-			bail(err)
-		}
-		return
+		usage()
 	}
 	for _, arg := range args {
+		if arg == "-" {
+			stat, err := os.Stdin.Stat()
+			if err != nil {
+				bail(err)
+			}
+			if (stat.Mode() & os.ModeCharDevice) != 0 {
+				usage()
+			}
+			if err = dumpFromReader(os.Stdin); err != nil {
+				bail(err)
+			}
+			if err = os.Stdin.Close(); err != nil {
+				bail(err)
+			}
+			continue
+		}
 		fh, err := os.Open(arg)
 		if err != nil {
 			bail(err)
 		}
-		if err := dumpFromReader(fh); err != nil {
+		if err := dumpFromReader(bufio.NewReader(fh)); err != nil {
 			bail(err)
 		}
 		if err := fh.Close(); err != nil {
@@ -32,30 +61,20 @@ func main() {
 }
 
 func dumpFromReader(ior io.Reader) error {
-	ocfr, err := goavro.NewOCFReader(ior)
+	ocf, err := goavro.NewOCFReader(ior)
 	if err != nil {
 		return err
 	}
 
-	codec := ocfr.Codec()
+	codec := ocf.Codec()
 	data := make(chan interface{}, 100)
-	wg := new(sync.WaitGroup)
-	wg.Add(1)
+	finishedOutput := new(sync.WaitGroup)
+	finishedOutput.Add(1)
 
-	go func(codec *goavro.Codec, data <-chan interface{}, wg *sync.WaitGroup) {
-		for datum := range data {
-			buf, err := codec.TextualFromNative(nil, datum)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "%s\n", err)
-				continue
-			}
-			fmt.Println(string(buf))
-		}
-		wg.Done()
-	}(codec, data, wg)
+	go textualFromNative(codec, data, finishedOutput)
 
-	for ocfr.Scan() {
-		datum, err := ocfr.Read()
+	for ocf.Scan() {
+		datum, err := ocf.Read()
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "%s\n", err)
 			continue
@@ -63,9 +82,21 @@ func dumpFromReader(ior io.Reader) error {
 		data <- datum
 	}
 	close(data)
-	wg.Wait()
+	finishedOutput.Wait()
 
-	return ocfr.Err()
+	return ocf.Err()
+}
+
+func textualFromNative(codec *goavro.Codec, data <-chan interface{}, finishedOutput *sync.WaitGroup) {
+	for datum := range data {
+		buf, err := codec.TextualFromNative(nil, datum)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "%s\n", err)
+			continue
+		}
+		fmt.Println(string(buf))
+	}
+	finishedOutput.Done()
 }
 
 func bail(err error) {

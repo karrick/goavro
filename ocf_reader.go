@@ -1,7 +1,6 @@
 package goavro
 
 import (
-	"bufio"
 	"bytes"
 	"compress/flate"
 	"encoding/binary"
@@ -10,218 +9,219 @@ import (
 	"hash/crc32"
 	"io"
 	"io/ioutil"
-	"math"
 
 	"github.com/golang/snappy"
 )
 
 // OCFReader structure is used to read Object Container Files (OCF).
 type OCFReader struct {
-	c              *Codec
-	block          []byte
-	br             *bufio.Reader
-	compression    Compression
-	err            error // error that occurred during Scan or Read
-	readReady      bool  // true after Scan and before Read
-	remainingItems int64 // initialized to block count for each block, and decremented to 0 by end of block
-	schema         string
-	syncMarker     []byte
+	header              *ocfHeader
+	block               []byte // buffer from which decoding takes place
+	rerr                error  // most recent error that took place while reading bytes (unrecoverable)
+	derr                error  // most recent decode error
+	ior                 io.Reader
+	readReady           bool  // true after Scan and before Read
+	remainingBlockItems int64 // count of encoded data items remaining in block buffer to be decoded
 }
-
-const readBlockSize = 4096 // read and process data by blocks
 
 // NewOCFReader initializes and returns a new structure used to read an Avro
 // Object Container File (OCF).
 //
-//    func example(ior io.Reader) error {
-//    	ocfr, err := goavro.NewOCFReader(ior)
-//    	if err != nil {
-//    		return err
-//    	}
-//    	for ocfr.Scan() {
-//    		datum, err := ocfr.Read()
-//    		if err != nil {
-//    			return err
-//    		}
-//    		fmt.Println(datum)
-//    	}
-//    	return ocfr.Err()
-//    }
+//     func example(ior io.Reader) error {
+//         // NOTE: Wrap provided io.Reader in a buffered reader, which improves the
+//         // performance of streaming file data.
+//         br := bufio.NewReader(ior)
+//         ocfr, err := goavro.NewOCFReader(br)
+//         if err != nil {
+//             return err
+//         }
+//         for ocfr.Scan() {
+//             datum, err := ocfr.Read()
+//             if err != nil {
+//                 return err
+//             }
+//             fmt.Println(datum)
+//         }
+//         return ocfr.Err()
+//     }
 func NewOCFReader(ior io.Reader) (*OCFReader, error) {
-	// NOTE: Wrap provided io.Reader in a buffered reader, which provides
-	// io.ByteReader interface, along with improving the performance of
-	// streaming file data.
-	br := bufio.NewReader(ior)
-
-	// read and verify magic bytes
-	magic := make([]byte, 4)
-	_, err := io.ReadFull(br, magic)
+	header, err := readOCFHeader(ior)
 	if err != nil {
-		return nil, fmt.Errorf("cannot read magic bytes: %s", err)
+		return nil, fmt.Errorf("cannot create OCFReader: %s", err)
 	}
-	if bytes.Compare(magic, magicBytes) != 0 {
-		return nil, fmt.Errorf("cannot decode OCF with invalid magic bytes: %#q", magic)
-	}
-
-	// decode header metadata
-	metadata, err := metadataBinaryReader(br)
-	if err != nil {
-		return nil, fmt.Errorf("cannot read metadata header: %s", err)
-	}
-
-	// ensure avro.codec valid
-	var compression Compression
-	value, ok := metadata["avro.codec"]
-	// NOTE: If ok is false and "avro.codec" was not included in the metadata
-	// header, assumes compression codec is null
-	if ok {
-		switch avroCodec := string(value); avroCodec {
-		case "", CompressionNullLabel:
-			// no action, because zero value of CompressionCodec specifies
-			// "null" compression
-		case CompressionDeflateLabel:
-			compression = CompressionDeflate
-		case CompressionSnappyLabel:
-			compression = CompressionSnappy
-		default:
-			return nil, fmt.Errorf("cannot decompress using unrecognized compression algorithm from avro.codec: %q", avroCodec)
-		}
-	}
-
-	// create decoder for avro.schema
-	value, ok = metadata["avro.schema"]
-	if !ok {
-		return nil, errors.New("cannot read without avro.schema")
-	}
-	bd, err := NewCodec(string(value))
-	if err != nil {
-		return nil, fmt.Errorf("cannot create codec from invalid avro.schema: %s", err)
-	}
-
-	// read and store sync marker
-	sm := make([]byte, 16)
-	n, err := io.ReadAtLeast(br, sm, 16)
-	if err != nil {
-		return nil, fmt.Errorf("cannot read sync marker: only read %d bytes: %s", n, err)
-	}
-
-	return &OCFReader{br: br, c: bd, syncMarker: sm, compression: compression, schema: string(value)}, nil
+	return &OCFReader{header: header, ior: ior}, nil
 }
 
-// Err returns the last error encountered while reading the OCF file. It does
-// not reset the read error.
+// Codec returns the codec found within the OCF file.
+func (ocfr *OCFReader) Codec() *Codec {
+	return ocfr.header.codec
+}
+
+// CompressionName returns the name of the compression algorithm found within
+// the OCF file.
+func (ocfr *OCFReader) CompressionName() string {
+	switch ocfr.header.compressionID {
+	case compressionNull:
+		return CompressionNullLabel
+	case compressionDeflate:
+		return CompressionDeflateLabel
+	case compressionSnappy:
+		return CompressionSnappyLabel
+	default:
+		return "should not get here: unrecognized compression algorithm"
+	}
+}
+
+// Err returns the last error encountered while reading the OCF file.  See
+// `NewOCFReader` documentation for an example.
 func (ocfr *OCFReader) Err() error {
-	return ocfr.err
+	return ocfr.rerr
+}
+
+// Read consumes one datum value from the Avro OCF stream and returns it. Read
+// is designed to be called only once after each invocation of the Scan method.
+// See `NewOCFReader` documentation for an example.
+func (ocfr *OCFReader) Read() (interface{}, error) {
+	// NOTE: Test previous error before testing readReady to prevent overwriting
+	// previous error.
+	if ocfr.rerr != nil {
+		return nil, ocfr.rerr
+	}
+	if !ocfr.readReady {
+		ocfr.rerr = errors.New("Read called without successful Scan")
+		return nil, ocfr.rerr
+	}
+	ocfr.readReady = false
+
+	// decode one datum value from block
+	var datum interface{}
+	datum, ocfr.block, ocfr.rerr = ocfr.header.codec.NativeFromBinary(ocfr.block)
+	if ocfr.rerr != nil {
+		return false, ocfr.rerr
+	}
+	ocfr.remainingBlockItems--
+
+	return datum, nil
+}
+
+// RemainingBlockItems returns the number of items remaining in the block being
+// processed.
+func (ocfr *OCFReader) RemainingBlockItems() int64 {
+	return ocfr.remainingBlockItems
 }
 
 // Scan returns true when there is at least one more data item to be read from
 // the Avro OCF. Scan ought to be called prior to calling the Read method each
-// time the Read method is invoked. See the documentation for
-// goavro.NewOCFReader for an example of how to use Scan.
+// time the Read method is invoked.  See `NewOCFReader` documentation for an
+// example.
 func (ocfr *OCFReader) Scan() bool {
 	ocfr.readReady = false
 
-	if ocfr.err != nil {
+	if ocfr.rerr != nil {
 		return false
 	}
 
 	// NOTE: If there are no more remaining data items from the existing block,
 	// then attempt to slurp in the next block.
-	if ocfr.remainingItems <= 0 {
-		if len(ocfr.block) > 0 {
-			ocfr.err = fmt.Errorf("extra bytes between final datum in previous block and block sync marker: %d", len(ocfr.block))
+	if ocfr.remainingBlockItems <= 0 {
+		if count := len(ocfr.block); count != 0 {
+			ocfr.rerr = fmt.Errorf("extra bytes between final datum in previous block and block sync marker: %d", count)
 			return false
 		}
 
 		// Read the block count and update the number of remaining items for
 		// this block
-		ocfr.remainingItems, ocfr.err = longBinaryReader(ocfr.br)
-		if ocfr.err != nil {
-			if ocfr.err == io.EOF {
-				ocfr.err = nil // merely end of file, rather than error
+		ocfr.remainingBlockItems, ocfr.rerr = longBinaryReader(ocfr.ior)
+		if ocfr.rerr != nil {
+			if ocfr.rerr == io.EOF {
+				ocfr.rerr = nil // merely end of file, rather than error
 			} else {
-				ocfr.err = fmt.Errorf("cannot read block count: %s", ocfr.err)
+				ocfr.rerr = fmt.Errorf("cannot read block count: %s", ocfr.rerr)
 			}
 			return false
 		}
-		if ocfr.remainingItems <= 0 {
-			ocfr.err = fmt.Errorf("cannot decode when block count is not greater than 0: %d", ocfr.remainingItems)
+		if ocfr.remainingBlockItems <= 0 {
+			ocfr.rerr = fmt.Errorf("cannot decode when block count is not greater than 0: %d", ocfr.remainingBlockItems)
 			return false
 		}
-		if ocfr.remainingItems > MaxBlockCount {
-			ocfr.err = fmt.Errorf("cannot decode when block count exceeds MaxBlockCount: %d > %d", ocfr.remainingItems, MaxBlockCount)
+		if ocfr.remainingBlockItems > MaxBlockCount {
+			ocfr.rerr = fmt.Errorf("cannot decode when block count exceeds MaxBlockCount: %d > %d", ocfr.remainingBlockItems, MaxBlockCount)
 		}
 
 		var blockSize int64
-		blockSize, ocfr.err = longBinaryReader(ocfr.br)
-		if ocfr.err != nil {
-			ocfr.err = fmt.Errorf("cannot read block size: %s", ocfr.err)
+		blockSize, ocfr.rerr = longBinaryReader(ocfr.ior)
+		if ocfr.rerr != nil {
+			ocfr.rerr = fmt.Errorf("cannot read block size: %s", ocfr.rerr)
 			return false
 		}
 		if blockSize <= 0 {
-			ocfr.err = fmt.Errorf("cannot decode when block size is not greater than 0: %d", blockSize)
+			ocfr.rerr = fmt.Errorf("cannot decode when block size is not greater than 0: %d", blockSize)
 			return false
 		}
 		if blockSize > MaxBlockSize {
-			ocfr.err = fmt.Errorf("cannot decode when block size exceeds MaxBlockSize: %d > %d", blockSize, MaxBlockSize)
+			ocfr.rerr = fmt.Errorf("cannot decode when block size exceeds MaxBlockSize: %d > %d", blockSize, MaxBlockSize)
 			return false
 		}
 
 		// read entire block into buffer
 		ocfr.block = make([]byte, blockSize)
-		_, ocfr.err = io.ReadFull(ocfr.br, ocfr.block)
-		if ocfr.err != nil {
-			ocfr.err = fmt.Errorf("cannot read block of %d bytes: %s", blockSize, ocfr.err)
+		_, ocfr.rerr = io.ReadFull(ocfr.ior, ocfr.block)
+		if ocfr.rerr != nil {
+			ocfr.rerr = fmt.Errorf("cannot read block: %s", ocfr.rerr)
 			return false
 		}
 
-		switch ocfr.compression {
-		case CompressionNull:
+		switch ocfr.header.compressionID {
+		case compressionNull:
 			// no-op
 
-		case CompressionDeflate:
+		case compressionDeflate:
 			// NOTE: flate.NewReader wraps with io.ByteReader if argument does
 			// not implement that interface.
 			rc := flate.NewReader(bytes.NewBuffer(ocfr.block))
-			ocfr.block, ocfr.err = ioutil.ReadAll(rc)
-			if ocfr.err != nil {
+			ocfr.block, ocfr.rerr = ioutil.ReadAll(rc)
+			if ocfr.rerr != nil {
 				_ = rc.Close()
 				return false
 			}
-			if ocfr.err = rc.Close(); ocfr.err != nil {
+			if ocfr.rerr = rc.Close(); ocfr.rerr != nil {
 				return false
 			}
 
-		case CompressionSnappy:
+		case compressionSnappy:
 			index := len(ocfr.block) - 4 // last 4 bytes is crc32 of decoded block
 			if index <= 0 {
-				ocfr.err = fmt.Errorf("cannot decompress snappy without CRC32 checksum: %d", len(ocfr.block))
+				ocfr.rerr = fmt.Errorf("cannot decompress snappy without CRC32 checksum: %d", len(ocfr.block))
 				return false
 			}
 			decoded, err := snappy.Decode(nil, ocfr.block[:index])
 			if err != nil {
-				ocfr.err = fmt.Errorf("cannot decompress: %s", err)
+				ocfr.rerr = fmt.Errorf("cannot decompress: %s", err)
 				return false
 			}
 			actualCRC := crc32.ChecksumIEEE(decoded)
 			expectedCRC := binary.BigEndian.Uint32(ocfr.block[index : index+4])
 			if actualCRC != expectedCRC {
-				ocfr.err = fmt.Errorf("snappy CRC32 checksum mismatch: %x != %x", actualCRC, expectedCRC)
+				ocfr.rerr = fmt.Errorf("snappy CRC32 checksum mismatch: %x != %x", actualCRC, expectedCRC)
 				return false
 			}
 			ocfr.block = decoded
 
+		default:
+			ocfr.rerr = fmt.Errorf("should not get here: cannot compress block using unrecognized compression: %d", ocfr.header.compressionID)
+			return false
+
 		}
 
 		// read and ensure sync marker matches
-		sync := make([]byte, 16)
+		sync := make([]byte, ocfSyncLength)
 		var n int
-		if n, ocfr.err = io.ReadFull(ocfr.br, sync); ocfr.err != nil {
-			ocfr.err = fmt.Errorf("cannot read sync marker: only read %d bytes: %s", n, ocfr.err)
+		if n, ocfr.rerr = io.ReadFull(ocfr.ior, sync); ocfr.rerr != nil {
+			ocfr.rerr = fmt.Errorf("cannot read sync marker: read %d out of %d bytes: %s", n, ocfSyncLength, ocfr.rerr)
 			return false
 		}
-		if !bytes.Equal(sync, ocfr.syncMarker) {
-			ocfr.err = fmt.Errorf("sync marker mismatch: %v != %v", sync, ocfr.syncMarker)
+		if !bytes.Equal(sync, ocfr.header.syncMarker) {
+			ocfr.rerr = fmt.Errorf("sync marker mismatch: %v != %v", sync, ocfr.header.syncMarker)
 			return false
 		}
 	}
@@ -230,211 +230,21 @@ func (ocfr *OCFReader) Scan() bool {
 	return true
 }
 
-// Read consumes one data item from the Avro OCF stream and returns it. Read is
-// designed to be called only once after each invocation of the Scan method.
-// See the documentation for goavro.NewOCFReader for an example of how to use
-// Read.
-func (ocfr *OCFReader) Read() (interface{}, error) {
-	// NOTE: Test previous error before testing readReady to prevent overwriting
-	// previous error.
-	if ocfr.err != nil {
-		return nil, ocfr.err
-	}
-	if !ocfr.readReady {
-		ocfr.err = errors.New("Read called without successful Scan")
-		return nil, ocfr.err
-	}
-	ocfr.readReady = false
-
-	// decode one data item from block
-	var datum interface{}
-	datum, ocfr.block, ocfr.err = ocfr.c.NativeFromBinary(ocfr.block)
-	if ocfr.err != nil {
-		return false, ocfr.err
-	}
-	ocfr.remainingItems--
-
-	return datum, nil
-}
-
-// RemainingItems returns the number of items remaining in the block being
-// processed.
-func (ocfr *OCFReader) RemainingItems() int64 {
-	return ocfr.remainingItems
-}
-
-// Codec returns the codec found within the OCF file.
-func (ocfr *OCFReader) Codec() *Codec {
-	return ocfr.c
-}
-
-// CompressionID returns the ID of the compression algorithm found within the
-// OCF file.
-func (ocfr *OCFReader) CompressionID() Compression {
-	return ocfr.compression
-}
-
-// CompressionName returns the name of the compression algorithm found within
-// the OCF file.
-func (ocfr *OCFReader) CompressionName() string {
-	switch ocfr.compression {
-	case CompressionNull:
-		return CompressionNullLabel
-	case CompressionDeflate:
-		return CompressionDeflateLabel
-	case CompressionSnappy:
-		return CompressionSnappyLabel
-	default:
-		return "unrecognized compression algorithm"
-	}
-}
-
-// Schema returns the schema found within the OCF file.
-func (ocfr *OCFReader) Schema() string {
-	return ocfr.schema
-}
-
-// bytesBinaryReader reads bytes from io.Reader and returns byte slice of
-// specified size or the error encountered while trying to read those bytes.
-func bytesBinaryReader(ior io.Reader) ([]byte, error) {
-	size, err := longBinaryReader(ior)
-	if err != nil {
-		return nil, fmt.Errorf("cannot read bytes: cannot read size: %s", err)
-	}
-	if size < 0 {
-		return nil, fmt.Errorf("cannot read bytes: size is negative: %d", size)
-	}
-	if size > MaxBlockSize {
-		return nil, fmt.Errorf("cannot read bytes: size exceeds MaxBlockSize: %d > %d", size, MaxBlockSize)
-	}
-	buf := make([]byte, size)
-	_, err = io.ReadAtLeast(ior, buf, int(size))
-	if err != nil {
-		return nil, fmt.Errorf("cannot read bytes: %s", err)
-	}
-	return buf, nil
-}
-
-// longBinaryReader reads bytes from io.Reader until has complete long value, or
-// read error.
-func longBinaryReader(ior io.Reader) (int64, error) {
-	var value uint64
-	var shift uint
-	var err error
-	var b byte
-
-	// NOTE: While benchmarks show it's more performant to invoke ReadByte when
-	// available, testing whether a variable's data type implements a particular
-	// method is quite slow too. So perform the test once, and branch to the
-	// appropriate loop based on the results.
-
-	if byteReader, ok := ior.(io.ByteReader); ok {
-		for {
-			if b, err = byteReader.ReadByte(); err != nil {
-				return 0, err // NOTE: must send back unaltered error to detect io.EOF
-			}
-			value |= uint64(b&intMask) << shift
-			if b&intFlag == 0 {
-				return (int64(value>>1) ^ -int64(value&1)), nil
-			}
-			shift += 7
-		}
-	}
-
-	// NOTE: ior does not also implement io.ByteReader, so we must allocate a
-	// byte slice with a single byte, and read each byte into the slice.
-	buf := make([]byte, 1)
-	for {
-		// if b, err = byteReader.ReadByte(); err != nil {
-		if _, err = ior.Read(buf); err != nil {
-			return 0, err // NOTE: must send back unaltered error to detect io.EOF
-		}
-		b = buf[0]
-		value |= uint64(b&intMask) << shift
-		if b&intFlag == 0 {
-			return (int64(value>>1) ^ -int64(value&1)), nil
-		}
-		shift += 7
-	}
-}
-
-// metadataBinaryReader reads bytes from io.Reader until has entire map value,
-// or read error.
-func metadataBinaryReader(ior io.Reader) (map[string][]byte, error) {
-	var err error
-	var value interface{}
-
-	// block count and block size
-	if value, err = longBinaryReader(ior); err != nil {
-		return nil, fmt.Errorf("cannot decode binary map block count: %s", err)
-	}
-	blockCount := value.(int64)
-	if blockCount < 0 {
-		if blockCount == math.MinInt64 {
-			// The minimum number for any signed numerical type can never be
-			// made positive
-			return nil, fmt.Errorf("cannot decode binary map with block count: %d", math.MinInt64)
-		}
-		// NOTE: A negative block count implies there is a long encoded block
-		// size following the negative block count. We have no use for the block
-		// size in this decoder, so we read and discard the value.
-		blockCount = -blockCount // convert to its positive equivalent
-		if _, err = longBinaryReader(ior); err != nil {
-			return nil, fmt.Errorf("cannot decode binary map block size: %s", err)
-		}
-	}
-	// Ensure block count does not exceed some sane value.
-	if blockCount > MaxBlockCount {
-		return nil, fmt.Errorf("cannot decode binary map when block count exceeds MaxBlockCount: %d > %d", blockCount, MaxBlockCount)
-	}
-	// NOTE: While the attempt of a RAM optimization shown below is not
-	// necessary, many encoders will encode all items in a single block.  We can
-	// optimize amount of RAM allocated by runtime for the array by initializing
-	// the array for that number of items.
-	mapValues := make(map[string][]byte, blockCount)
-
-	for blockCount != 0 {
-		// Decode `blockCount` datum values from buffer
-		for i := int64(0); i < blockCount; i++ {
-			// first decode the key string
-			keyBytes, err := bytesBinaryReader(ior)
-			if err != nil {
-				return nil, fmt.Errorf("cannot decode binary map key: %s", err)
-			}
-			key := string(keyBytes)
-			if _, ok := mapValues[key]; ok {
-				return nil, fmt.Errorf("cannot decode binary map: duplicate key: %q", key)
-			}
-			// metadata values are always bytes
-			buf, err := bytesBinaryReader(ior)
-			if err != nil {
-				return nil, fmt.Errorf("cannot decode binary map key %q value: %s", key, err)
-			}
-			mapValues[key] = buf
-		}
-		// Decode next blockCount from buffer, because there may be more blocks
-		if value, err = longBinaryReader(ior); err != nil {
-			return nil, fmt.Errorf("cannot decode map block count: %s", err)
-		}
-		blockCount = value.(int64)
-		if blockCount < 0 {
-			if blockCount == math.MinInt64 {
-				// The minimum number for any signed numerical type can never be
-				// made positive
-				return nil, fmt.Errorf("cannot decode binary map with block count: %d", math.MinInt64)
-			}
-			// NOTE: A negative block count implies there is a long encoded
-			// block size following the negative block count. We have no use for
-			// the block size in this decoder, so we read and discard the value.
-			blockCount = -blockCount // convert to its positive equivalent
-			if _, err = longBinaryReader(ior); err != nil {
-				return nil, fmt.Errorf("cannot decode map block size: %s", err)
-			}
-		}
-		// Ensure block count does not exceed some sane value.
-		if blockCount > MaxBlockCount {
-			return nil, fmt.Errorf("cannot decode binary map when block count exceeds MaxBlockCount: %d > %d", blockCount, MaxBlockCount)
-		}
-	}
-	return mapValues, nil
+// SkipThisBlockAndReset can be called after an error occurs while reading or
+// decoding datum values from an OCF stream. OCF specifies each OCF stream
+// contain one or more blocks of data. Each block consists of a block count, the
+// number of bytes for the block, followed be the possibly compressed
+// block. Inside each decompressed block is all of the binary encoded datum
+// values concatenated together. In other words, OCF framing is at a block level
+// rather than a datum level. If there is an error while reading or decoding a
+// datum, the reader is not able to skip to the next datum value, because OCF
+// does not have any markers for where each datum ends and the next one
+// begins. Therefore, the reader is only able to skip this datum value and all
+// subsequent datum values in the current block, move to the next block and
+// start decoding datum values there.
+func (ocfr *OCFReader) SkipThisBlockAndReset() {
+	// ??? is it an error to call method unless the reader has had an error
+	ocfr.remainingBlockItems = 0
+	ocfr.block = ocfr.block[:0]
+	ocfr.rerr = nil
 }

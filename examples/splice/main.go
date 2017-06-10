@@ -11,11 +11,10 @@ import (
 	"github.com/karrick/goavro"
 )
 
-const (
-	magicBytes     = "Obj\x01"
-	metadataSchema = `{"type":"map","values":"bytes"}`
-	syncLength     = 16
-)
+func bail(err error) {
+	fmt.Fprintf(os.Stderr, "%s\n", err)
+	os.Exit(1)
+}
 
 func usage() {
 	executable, err := os.Executable()
@@ -24,26 +23,14 @@ func usage() {
 	}
 	base := filepath.Base(executable)
 	fmt.Fprintf(os.Stderr, "Usage of %s:\n", base)
-	fmt.Fprintf(os.Stderr, "\t%s [-compress null|deflate|snappy] schema.avsc input.dat output.avro\n", base)
+	fmt.Fprintf(os.Stderr, "\t%s [-compression null|deflate|snappy] schema.avsc input.dat output.avro\n", base)
 	flag.PrintDefaults()
 	os.Exit(2)
 }
 
 func main() {
-	compress := flag.String("compress", "null", "compression codec ('null', 'deflate', 'snappy'; default: 'null')")
+	compressionName := flag.String("compression", "null", "compression codec ('null', 'deflate', 'snappy'; default: 'null')")
 	flag.Parse()
-
-	var compression goavro.Compression
-	switch *compress {
-	case goavro.CompressionNullLabel:
-		// the goavro.Compression zero value specifies the null codec
-	case goavro.CompressionDeflateLabel:
-		compression = goavro.CompressionDeflate
-	case goavro.CompressionSnappyLabel:
-		compression = goavro.CompressionSnappy
-	default:
-		bail(fmt.Errorf("unsupported compression codec: %s", *compress))
-	}
 
 	if len(flag.Args()) != 3 {
 		usage()
@@ -54,17 +41,12 @@ func main() {
 		bail(err)
 	}
 
+	codec, err := goavro.NewCodec(string(schemaBytes))
+	if err != nil {
+		bail(err)
+	}
+
 	dataBytes, err := ioutil.ReadFile(flag.Arg(1))
-	if err != nil {
-		bail(err)
-	}
-
-	bd, err := goavro.NewCodec(string(schemaBytes))
-	if err != nil {
-		bail(err)
-	}
-
-	datum, _, err := bd.NativeFromBinary(dataBytes)
 	if err != nil {
 		bail(err)
 	}
@@ -79,21 +61,32 @@ func main() {
 		}
 	}(fh)
 
-	ocfw, err := goavro.NewOCFWriter(goavro.OCFWriterConfig{
-		W:           fh,
-		Schema:      string(schemaBytes),
-		Compression: compression,
+	ocfw, err := goavro.NewOCFWriter(goavro.OCFConfig{
+		W:               fh,
+		Codec:           codec,
+		CompressionName: *compressionName,
 	})
 	if err != nil {
 		bail(err)
 	}
 
-	if err = ocfw.Append([]interface{}{datum}); err != nil {
+	var datum interface{}
+
+	for len(dataBytes) > 0 {
+		datum, dataBytes, err = codec.NativeFromBinary(dataBytes)
+		if err != nil {
+			if err == io.EOF {
+				err = nil
+				break
+			}
+			bail(err)
+		}
+		if err = ocfw.Append([]interface{}{datum}); err != nil {
+			bail(err)
+		}
+	}
+
+	if err != nil {
 		bail(err)
 	}
-}
-
-func bail(err error) {
-	fmt.Fprintf(os.Stderr, "%s\n", err)
-	os.Exit(1)
 }

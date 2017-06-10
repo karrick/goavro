@@ -3,6 +3,31 @@ package goavro
 import (
 	"encoding/json"
 	"fmt"
+	"math"
+)
+
+var (
+	// MaxBlockCount is the maximum number of data items allowed in a single
+	// block that will be decoded from a binary stream, whether when reading
+	// blocks to decode an array or a map, or when reading blocks from an OCF
+	// stream. This check is to ensure decoding binary data will not cause the
+	// library to over allocate RAM, potentially creating a denial of service on
+	// the system.
+	//
+	// If a particular application needs to decode binary Avro data that
+	// potentially has more data items in a single block, then this variable may
+	// be modified at your discretion.
+	MaxBlockCount = int64(math.MaxInt32)
+
+	// MaxBlockSize is the maximum number of bytes that will be allocated for a
+	// single block of data items when decoding from a binary stream. This check
+	// is to ensure decoding binary data will not cause the library to over
+	// allocate RAM, potentially creating a denial of service on the system.
+	//
+	// If a particular application needs to decode binary Avro data that
+	// potentially has more bytes in a single block, then this variable may be
+	// modified at your discretion.
+	MaxBlockSize = int64(math.MaxInt32)
 )
 
 // Codec supports decoding binary and text Avro data to Go native data types,
@@ -50,6 +75,7 @@ func newSymbolTable() map[string]*Codec {
 			textualFromNative: floatTextualFromNative,
 		},
 		"int": &Codec{
+
 			typeName:          &name{"int", nullNamespace},
 			binaryFromNative:  intBinaryFromNative,
 			nativeFromBinary:  intNativeFromBinary,
@@ -96,14 +122,13 @@ func newSymbolTable() map[string]*Codec {
 // many go routines simultaneously, as your program requires.
 //
 //     codec, err := goavro.NewCodec(`
-//     {
-//       "type": "record",
-//       "name": "LongList",
-//       "fields" : [
-//         {"name": "next", "type": ["null", "LongList"], "default": null}
-//       ]
-//     }
-//     `)
+//         {
+//           "type": "record",
+//           "name": "LongList",
+//           "fields" : [
+//             {"name": "next", "type": ["null", "LongList"], "default": null}
+//           ]
+//         }`)
 //     if err != nil {
 //             fmt.Println(err)
 //     }
@@ -148,14 +173,13 @@ func NewCodec(schemaSpecification string) (*Codec, error) {
 //
 //     func ExampleBinaryFromNative() {
 //         codec, err := goavro.NewCodec(`
-//     {
-//       "type": "record",
-//       "name": "LongList",
-//       "fields" : [
-//         {"name": "next", "type": ["null", "LongList"], "default": null}
-//       ]
-//     }
-//     `)
+//             {
+//               "type": "record",
+//               "name": "LongList",
+//               "fields" : [
+//                 {"name": "next", "type": ["null", "LongList"], "default": null}
+//               ]
+//             }`)
 //         if err != nil {
 //             fmt.Println(err)
 //         }
@@ -195,14 +219,13 @@ func (c *Codec) BinaryFromNative(buf []byte, datum interface{}) ([]byte, error) 
 //
 //     func ExampleNativeFromBinary() {
 //         codec, err := goavro.NewCodec(`
-//     {
-//       "type": "record",
-//       "name": "LongList",
-//       "fields" : [
-//         {"name": "next", "type": ["null", "LongList"], "default": null}
-//       ]
-//     }
-//     `)
+//             {
+//               "type": "record",
+//               "name": "LongList",
+//               "fields" : [
+//                 {"name": "next", "type": ["null", "LongList"], "default": null}
+//               ]
+//             }`)
 //         if err != nil {
 //             fmt.Println(err)
 //         }
@@ -235,14 +258,13 @@ func (c *Codec) NativeFromBinary(buf []byte) (interface{}, []byte, error) {
 //
 //     func ExampleNativeFromTextual() {
 //         codec, err := goavro.NewCodec(`
-//     {
-//       "type": "record",
-//       "name": "LongList",
-//       "fields" : [
-//         {"name": "next", "type": ["null", "LongList"], "default": null}
-//       ]
-//     }
-//     `)
+//             {
+//               "type": "record",
+//               "name": "LongList",
+//               "fields" : [
+//                 {"name": "next", "type": ["null", "LongList"], "default": null}
+//               ]
+//             }`)
 //         if err != nil {
 //             fmt.Println(err)
 //         }
@@ -275,14 +297,13 @@ func (c *Codec) NativeFromTextual(buf []byte) (interface{}, []byte, error) {
 //
 //     func ExampleTextualFromNative() {
 //         codec, err := goavro.NewCodec(`
-//     {
-//       "type": "record",
-//       "name": "LongList",
-//       "fields" : [
-//         {"name": "next", "type": ["null", "LongList"], "default": null}
-//       ]
-//     }
-//     `)
+//             {
+//               "type": "record",
+//               "name": "LongList",
+//               "fields" : [
+//                 {"name": "next", "type": ["null", "LongList"], "default": null}
+//               ]
+//             }`)
 //         if err != nil {
 //             fmt.Println(err)
 //         }
@@ -409,12 +430,4 @@ func registerNewCodec(st map[string]*Codec, schemaMap map[string]interface{}, en
 	c := &Codec{typeName: n}
 	st[n.fullName] = c
 	return c, nil
-}
-
-func typeNames(st map[string]*Codec) []string {
-	var keys []string
-	for k := range st {
-		keys = append(keys, k)
-	}
-	return keys
 }

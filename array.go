@@ -191,7 +191,7 @@ func makeArrayCodec(st map[string]*Codec, enclosingNamespace string, schemaMap m
 	}, nil
 }
 
-// convertArray converts datum to []interface{} if possible.
+// convertArray converts interface{} to []interface{} if possible.
 func convertArray(datum interface{}) ([]interface{}, error) {
 	arrayValues, ok := datum.([]interface{})
 	if ok {
@@ -208,6 +208,7 @@ func convertArray(datum interface{}) ([]interface{}, error) {
 	//       []int, for example, to []interface{}, with O(1) complexity
 	//   (2) use copy builtin to zip the data items over with O(n) complexity,
 	//       but more efficient than what's below.
+	// Suggestions?
 	arrayValues = make([]interface{}, v.Len())
 	for idx := 0; idx < v.Len(); idx++ {
 		arrayValues[idx] = v.Index(idx).Interface()

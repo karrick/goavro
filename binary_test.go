@@ -9,7 +9,7 @@ import (
 	"github.com/karrick/goavro"
 )
 
-var morePositiveThanMaxBlockCount, moreNegativeThanMaxBlockCount, mostNegativeBlockCount []byte
+var morePositiveThanMaxBlockCount, morePositiveThanMaxBlockSize, moreNegativeThanMaxBlockCount, mostNegativeBlockCount []byte
 
 func init() {
 	c, err := goavro.NewCodec("long")
@@ -18,6 +18,11 @@ func init() {
 	}
 
 	morePositiveThanMaxBlockCount, err = c.BinaryFromNative(nil, (goavro.MaxBlockCount + 1))
+	if err != nil {
+		panic(err)
+	}
+
+	morePositiveThanMaxBlockSize, err = c.BinaryFromNative(nil, (goavro.MaxBlockSize + 1))
 	if err != nil {
 		panic(err)
 	}
