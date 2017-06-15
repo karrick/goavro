@@ -220,7 +220,7 @@ func (ocfr *OCFReader) Scan() bool {
 			ocfr.rerr = fmt.Errorf("cannot read sync marker: read %d out of %d bytes: %s", n, ocfSyncLength, ocfr.rerr)
 			return false
 		}
-		if !bytes.Equal(sync, ocfr.header.syncMarker) {
+		if !bytes.Equal(sync, ocfr.header.syncMarker[:]) {
 			ocfr.rerr = fmt.Errorf("sync marker mismatch: %v != %v", sync, ocfr.header.syncMarker)
 			return false
 		}

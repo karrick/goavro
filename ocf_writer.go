@@ -52,6 +52,9 @@ type OCFWriter struct {
 	iow    io.Writer
 }
 
+// NewOCFWriter returns a new OCFWriter instance that may be used for appending
+// binary Avro data, either by appending to an existing OCF file or creating a
+// new OCF file.
 func NewOCFWriter(config OCFConfig) (*OCFWriter, error) {
 	var err error
 	ocf := &OCFWriter{iow: config.W}
@@ -132,7 +135,7 @@ func (ocfw *OCFWriter) quickScanToTail(ior io.Reader) error {
 		if n, err = io.ReadFull(ior, sync); err != nil {
 			return fmt.Errorf("cannot read sync marker: read %d out of %d bytes: %s", n, ocfSyncLength, err)
 		}
-		if !bytes.Equal(sync, ocfw.header.syncMarker) {
+		if !bytes.Equal(sync, ocfw.header.syncMarker[:]) {
 			return fmt.Errorf("sync marker mismatch: %v != %v", sync, ocfw.header.syncMarker)
 		}
 	}
@@ -206,7 +209,7 @@ func (ocfw *OCFWriter) appendDataIntoBlock(data []interface{}) error {
 	buf, _ = longBinaryFromNative(buf, len(data))    // block count (number of data items)
 	buf, _ = longBinaryFromNative(buf, len(block))   // block size (number of bytes in block)
 	buf = append(buf, block...)                      // serialized objects
-	buf = append(buf, ocfw.header.syncMarker...)     // sync marker
+	buf = append(buf, ocfw.header.syncMarker[:]...)  // sync marker
 
 	_, err = ocfw.iow.Write(buf)
 	return err

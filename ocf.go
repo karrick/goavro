@@ -2,11 +2,10 @@ package goavro
 
 import (
 	"bytes"
+	"crypto/rand"
 	"errors"
 	"fmt"
 	"io"
-	"math/rand"
-	"time"
 )
 
 const (
@@ -52,7 +51,7 @@ func init() {
 type ocfHeader struct {
 	codec         *Codec
 	compressionID compressionID
-	syncMarker    []byte
+	syncMarker    [ocfSyncLength]byte
 }
 
 func newOCFHeader(config OCFConfig) (*ocfHeader, error) {
@@ -92,11 +91,7 @@ func newOCFHeader(config OCFConfig) (*ocfHeader, error) {
 	//
 	// The 16-byte, randomly-generated sync marker for this file.
 	//
-	r := rand.New(rand.NewSource(time.Now().Unix()))
-	header.syncMarker = make([]byte, ocfSyncLength)
-	for i := 0; i < ocfSyncLength; i++ {
-		header.syncMarker[i] = byte(r.Intn(256))
-	}
+	rand.Read(header.syncMarker[:])
 
 	return header, nil
 }
@@ -160,19 +155,19 @@ func readOCFHeader(ior io.Reader) (*ocfHeader, error) {
 		return nil, fmt.Errorf("cannot read OCF header with invalid avro.schema: %s", err)
 	}
 
+	header := &ocfHeader{codec: codec, compressionID: cID}
+
 	//
 	// read and store sync marker
 	//
-	syncMarker := make([]byte, ocfSyncLength)
-	n, err := io.ReadAtLeast(ior, syncMarker, ocfSyncLength)
-	if err != nil {
+	if n, err := io.ReadFull(ior, header.syncMarker[:]); err != nil {
 		return nil, fmt.Errorf("cannot read OCF header without sync marker: only read %d of %d bytes: %s", n, ocfSyncLength, err)
 	}
 
 	//
 	// header is valid
 	//
-	return &ocfHeader{codec: codec, compressionID: cID, syncMarker: syncMarker}, nil
+	return header, nil
 }
 
 func writeOCFHeader(header *ocfHeader, iow io.Writer) (err error) {
@@ -212,7 +207,7 @@ func writeOCFHeader(header *ocfHeader, iow io.Writer) (err error) {
 	//
 	// 16-byte sync marker
 	//
-	buf = append(buf, header.syncMarker...)
+	buf = append(buf, header.syncMarker[:]...)
 
 	// emit OCF header
 	_, err = iow.Write(buf)
