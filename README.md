@@ -22,70 +22,106 @@ fully compliant with the most recent version of the
 * [Google Snappy](https://code.google.com/p/snappy/)
 * [JavaScript Object Notation, JSON](http://www.json.org/)
 
+## Contrast With Code Generation Tools
+
+If you have the ability to rebuild and redeploy your software whenever
+data schemas change, code generation tools might be the best solution
+for your application.
+
+There are numerous excellent tools for generating source code to
+translate data between native and Avro binary or textual data. One
+such tool is linkedin below. If a particular application is designed
+to work with a rarely changing schema, programs that use code
+generated functions can potentially be more performant than a program
+that uses goavro to create a `Codec` at run time.
+
+* [gogen-avro](https://github.com/alanctgardner/gogen-avro)
+
+I recommend benchmarking the resultant programs using typical data
+using both the code generated functions and using goavro to see which
+performs better. Not all code generated functions will out perform
+goavro for all data corpuses.
+
+If you don't have the ability to rebuild and redeploy software updates
+whenever a data schema change occurs, goavro could be a great fit for
+your needs. With goavro at runtime your program can be given a new
+schema, compile it into a `Codec`, and immediately start encoding or
+decoding data using that `Codec`. Because Avro encoding specifies that
+encoded data always be accompanied by a schema this is not usually a
+problem. If the schema change is backwards compatible, and the portion
+of your program that handles the decoded data is still able to
+reference the decoded fields, there is nothing that needs to be done
+when the schema change is detected by your program when using goavro
+`Codec` instances to encode or decode data.
+
 ## Usage
 
 Documentation is available via
 [![GoDoc](https://godoc.org/github.com/karrick/goavro?status.svg)](https://godoc.org/github.com/karrick/goavro).
 
-Also please see the example programs in the `examples` directory for
-reference.
-
 ```Go
 package main
 
 import (
-	"fmt"
+    "fmt"
 
-	"github.com/karrick/goavro"
+    "github.com/karrick/goavro"
 )
 
 func main() {
-	codec, err := goavro.NewCodec(`
-{
-  "type": "record",
-  "name": "LongList",
-  "fields" : [
-	{"name": "next", "type": ["null", "LongList"], "default": null}
-  ]
-}
-`)
-	if err != nil {
-		fmt.Println(err)
-	}
+    codec, err := goavro.NewCodec(`
+        {
+          "type": "record",
+          "name": "LongList",
+          "fields" : [
+            {"name": "next", "type": ["null", "LongList"], "default": null}
+          ]
+        }`)
+    if err != nil {
+        fmt.Println(err)
+    }
 
-	// NOTE: May omit fields when using default value
-	textual := []byte(`{"next":{"LongList":{}}}`)
+    // NOTE: May omit fields when using default value
+    textual := []byte(`{"next":{"LongList":{}}}`)
 
-	// Convert textual Avro data (in Avro JSON format) to native Go form
-	native, _, err := codec.NativeFromTextual(textual)
-	if err != nil {
-		fmt.Println(err)
-	}
+    // Convert textual Avro data (in Avro JSON format) to native Go form
+    native, _, err := codec.NativeFromTextual(textual)
+    if err != nil {
+        fmt.Println(err)
+    }
 
-	// Convert native Go form to binary Avro data
-	binary, err := codec.BinaryFromNative(nil, native)
-	if err != nil {
-		fmt.Println(err)
-	}
+    // Convert native Go form to binary Avro data
+    binary, err := codec.BinaryFromNative(nil, native)
+    if err != nil {
+        fmt.Println(err)
+    }
 
-	// Convert binary Avro data back to native Go form
-	native, _, err = codec.NativeFromBinary(binary)
-	if err != nil {
-		fmt.Println(err)
-	}
+    // Convert binary Avro data back to native Go form
+    native, _, err = codec.NativeFromBinary(binary)
+    if err != nil {
+        fmt.Println(err)
+    }
 
-	// Convert native Go form to textual Avro data
-	textual, err = codec.TextualFromNative(nil, native)
-	if err != nil {
-		fmt.Println(err)
-	}
+    // Convert native Go form to textual Avro data
+    textual, err = codec.TextualFromNative(nil, native)
+    if err != nil {
+        fmt.Println(err)
+    }
 
-	// NOTE: Textual encoding will show all fields, even those with values that
-	// match their default values
-	fmt.Println(string(textual))
-	// Output: {"next":{"LongList":{"next":null}}}
+    // NOTE: Textual encoding will show all fields, even those with values that
+    // match their default values
+    fmt.Println(string(textual))
+    // Output: {"next":{"LongList":{"next":null}}}
 }
 ```
+
+Also please see the example programs in the `examples` directory for
+reference. The `ab2t` program is similar to the reference standard
+`avrocat` program and converts Avro OCF files to Avro JSON
+encoding. The Avro-ReWrite program, `arw`, can be used to rewrite an
+Avro OCF file while optionally changing the block counts, the
+compression algorithm. `arw` can also upgrade the schema provided the
+existing datum values can be encoded with the newly provided schema.
 
 ### Translating Data
 
@@ -161,16 +197,16 @@ specified above.
 
 ```Go
 func ExampleUnion() {
-	codec, err := goavro.NewCodec(`["null","string","int"]`)
-	if err != nil {
-		fmt.Println(err)
-	}
-	buf, err := codec.TextFromNative(nil, goavro.Union("string", "some string"))
-	if err != nil {
-		fmt.Println(err)
-	}
-	fmt.Println(string(buf))
-	// Output: {"string":"some string"}
+    codec, err := goavro.NewCodec(`["null","string","int"]`)
+    if err != nil {
+        fmt.Println(err)
+    }
+    buf, err := codec.TextFromNative(nil, goavro.Union("string", "some string"))
+    if err != nil {
+        fmt.Println(err)
+    }
+    fmt.Println(string(buf))
+    // Output: {"string":"some string"}
 }
 ```
 
@@ -182,7 +218,9 @@ In general it is poor form to define a library API which shares the
 same function or method names but provides a different method
 signature to an accepted standard. Go has particular strong emphasis
 on what a Reader and Writer are, and they conflict with what the Avro
-specification describes as a reader and a writer.
+specification describes as a reader and a writer. Thus goavro shys
+away from using the terms _reader_ and _writer_ as most Avro tools and
+libraries would normally use.
 
 In Go, an `io.Reader` reads data from the stream specified at object
 instantiation time into a preallocated slice of bytes and returns both
@@ -221,15 +259,9 @@ in place of the missing value.
 
 With the exeption of features not yet supported, goavro attempts to be
 fully compliant with the most recent version of the
-[Avro specification](http://avro.apache.org/docs/1.8.1/spec.html).
-
-### Default maximum block count and block size for OCF
-
-To prevent over allocation of memory when decoding OCF data, goavro
-returns an error whenever an OCF block count exceeds MaxBlockCount, or
-a block size exceeds MaxBlockSize. Both of these tokens are set to
-`math.MaxInt32`, or ~2.2 GiB, but are declared as variables so a user
-can change the limit if deemed necessary.
+[Avro specification](http://avro.apache.org/docs/1.8.1/spec.html). The
+following limitations may change as future releases of goavro may
+include support for some of these features.
 
 ### Aliases
 
@@ -243,10 +275,14 @@ The Avro specification describes the process by which schemas are
 canonlicalized. Goavro does not canonicalize schema strings when
 creating a `Codec`, although it does eliminate extra whitespace.
 
-### Logical Types
+### Default maximum block count and block size
 
-Goavro does not implement Logical Types as required by the Avro
-specification.
+To prevent over allocation of memory when decoding Avro arrays, bytes,
+maps, strings, and OCF data, goavro returns an error whenever a block
+count exceeds `MaxBlockCount`, or a block size exceeds
+`MaxBlockSize`. Both of these tokens are set to `math.MaxInt32`, or
+~2.2 GiB, but are declared as variables so a user can change the limit
+if deemed necessary.
 
 ### Kafka Streams
 
@@ -254,7 +290,15 @@ specification.
 written. Similar to Avro Object Container Files being a layer of
 abstraction above Avro Data Serialization format, Kafka's use of Avro
 is a layer of abstraction that also sits above Avro Data Serialization
-format, but has its own schema.
+format, but has its own schema. Goavro itself is not a Kafka
+library. Goavro coupled with a Kafka library is used everyday to
+process hundreds of billions of datum values everyday where goavro was
+developed.
+
+### Logical Types
+
+Goavro does not implement Logical Types as required by the Avro
+specification.
 
 ### RPC Support
 
@@ -263,15 +307,15 @@ Avro specification. Avro protocol declarations, messages, message
 transports, message framing, handshakes, and call format are all
 unsupported by this library.
 
+### Record Field Aliases
+
+The Avro specification allows for providing a JSON array of strings as
+alternate names for a Record field. While goavro can create `Codec`
+instances that specify `aliases`, that list is ignored.
+
 ### Record Field Order
 
 The Avro specification allows for providing a sory order string,
 either `ascending`, `descending`, or `ignore`, for use when sorting
 records. While goavro can create `Codec` instances that specify
 `order`, those values are not used.
-
-### Record Field Aliases
-
-The Avro specification allows for providing a JSON array of strings as
-alternate names for a Record field. While goavro can create `Codec`
-instances that specify `aliases`, that list is ignored.

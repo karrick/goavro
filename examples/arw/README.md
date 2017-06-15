@@ -21,8 +21,8 @@ If summary option, `-summary`, is provided, `arw` will provide summary
 information while rewriting the OCF.
 
 If verbose option, `-v`, is provided, `arw` will provide verbose
-information while rewriting the OCF. Specifying verbose implies
-summary.
+information while rewriting the OCF. Specifying verbose implies the
+summary option.
 
 If block count option, `-bc`, is provided, then each block will have
 no more items than specified. If omitted, then `arw` will re-encode
