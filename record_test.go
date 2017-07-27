@@ -80,7 +80,11 @@ func TestSchemaRecordFieldWithDefaults(t *testing.T) {
 }
 
 func TestRecordDecodedEmptyBuffer(t *testing.T) {
-	testBinaryDecodeFailShortBuffer(t, `{"type":"record","name":"foo","fields":[{"name":"field1","type":"int"}]}`, nil)
+	testBinaryDecodeFail(t, `{"type":"record","name":"foo","fields":[{"name":"field1","type":"int"}]}`, nil, "schema does not specify default value and no value provided")
+}
+
+func TestRecordDecodedDefaultValue(t *testing.T) {
+	testBinaryDecodePass(t, `{"type":"record","name":"foo","fields":[{"name":"field1","type":"int","default":0}]}`, map[string]int{"field1": 0}, nil)
 }
 
 func TestRecordFieldTypeHasPrimitiveName(t *testing.T) {
@@ -415,7 +419,7 @@ func TestRecordRecursiveRoundTrip(t *testing.T) {
 	codec, err := goavro.NewCodec(`
 {
   "type": "record",
-  "name": "LongList",                  
+  "name": "LongList",
   "fields" : [
     {"name": "next", "type": ["null", "LongList"], "default": null}
   ]
