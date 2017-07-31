@@ -59,11 +59,16 @@ func makeRecordCodec(st map[string]*Codec, enclosingNamespace string, schemaMap 
 				defaultValue = Union(fieldCodec.schema, defaultValue)
 			}
 			// attempt to encode default value using codec
-			_, err = fieldCodec.binaryFromNative(nil, defaultValue)
+			binaryValue, err := fieldCodec.binaryFromNative(nil, defaultValue)
 			if err != nil {
 				return nil, fmt.Errorf("Record %q field %q: default value ought to encode using field schema: %s", c.typeName, fieldName, err)
 			}
-			defaultValueFromName[fieldName] = defaultValue
+			// decode it back so we have the right type
+			nativeValue, _, err := fieldCodec.nativeFromBinary(binaryValue)
+			if err != nil {
+				return nil, fmt.Errorf("Record %q field %q: default value cannot be decoded back: %s", c.typeName, fieldName, err)
+			}
+			defaultValueFromName[fieldName] = nativeValue
 		}
 
 		nameFromIndex[i] = fieldName
