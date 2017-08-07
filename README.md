@@ -269,12 +269,6 @@ The Avro specification allows an implementation to optionally map a
 writer's schema to a reader's schema using aliases. Although goavro
 can compile schemas with aliases, it does not implement this feature.
 
-### Canonicalization of Schemas
-
-The Avro specification describes the process by which schemas are
-canonlicalized. Goavro does not canonicalize schema strings when
-creating a `Codec`, although it does eliminate extra whitespace.
-
 ### Default maximum block count and block size
 
 To prevent over allocation of memory when decoding Avro arrays, bytes,
