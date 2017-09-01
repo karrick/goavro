@@ -1,5 +1,10 @@
 # goavro
 
+## Deprecation Notice
+
+This library has been merged into https://github.com/linkedin/goavro,
+where all further development will continue.
+
 ## Description
 
 Goavro is a library written in Go that supports translating binary and
