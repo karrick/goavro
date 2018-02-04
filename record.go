@@ -59,11 +59,16 @@ func makeRecordCodec(st map[string]*Codec, enclosingNamespace string, schemaMap 
 				defaultValue = Union(fieldCodec.schema, defaultValue)
 			}
 			// attempt to encode default value using codec
-			_, err = fieldCodec.binaryFromNative(nil, defaultValue)
+			binaryValue, err := fieldCodec.binaryFromNative(nil, defaultValue)
 			if err != nil {
 				return nil, fmt.Errorf("Record %q field %q: default value ought to encode using field schema: %s", c.typeName, fieldName, err)
 			}
-			defaultValueFromName[fieldName] = defaultValue
+			// decode it back so we have the right type
+			nativeValue, _, err := fieldCodec.nativeFromBinary(binaryValue)
+			if err != nil {
+				return nil, fmt.Errorf("Record %q field %q: default value cannot be decoded back: %s", c.typeName, fieldName, err)
+			}
+			defaultValueFromName[fieldName] = nativeValue
 		}
 
 		nameFromIndex[i] = fieldName
@@ -106,6 +111,18 @@ func makeRecordCodec(st map[string]*Codec, enclosingNamespace string, schemaMap 
 			name := nameFromIndex[i]
 			var value interface{}
 			var err error
+			var ok bool
+
+			// NOTE: If we finished the buffer and there are still fields to fill,
+			// use default value if specified
+			if len(buf) == 0 {
+				if value, ok = defaultValueFromName[name]; !ok {
+					return nil, nil, fmt.Errorf("cannot decode binary record %q field %q: schema does not specify default value and no value provided", c.typeName, name)
+				}
+				recordMap[name] = value
+				continue
+			}
+
 			value, buf, err = fieldCodec.nativeFromBinary(buf)
 			if err != nil {
 				return nil, nil, fmt.Errorf("cannot decode binary record %q field %q: %s", c.typeName, name, err)

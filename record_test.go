@@ -80,7 +80,40 @@ func TestSchemaRecordFieldWithDefaults(t *testing.T) {
 }
 
 func TestRecordDecodedEmptyBuffer(t *testing.T) {
-	testBinaryDecodeFailShortBuffer(t, `{"type":"record","name":"foo","fields":[{"name":"field1","type":"int"}]}`, nil)
+	testBinaryDecodeFail(t, `{"type":"record","name":"foo","fields":[{"name":"field1","type":"int"}]}`, nil, "schema does not specify default value and no value provided")
+}
+
+func TestRecordDecodedDefaultValue(t *testing.T) {
+
+	schema := `{"type":"record","name":"foo","fields":[{"name":"field1","type":"long","default":0}]}`
+	datum := map[string]int64{"field1": 0}
+	codec, err := goavro.NewCodec(schema)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	value, remaining, err := codec.NativeFromBinary(nil)
+	if err != nil {
+		t.Fatalf("schema: %s; %s", schema, err)
+	}
+
+	// remaining ought to be empty because there is nothing remaining to be
+	// decoded
+	if actual, expected := len(remaining), 0; actual != expected {
+		t.Errorf("schema: %s; Datum: %v; Actual: %#v; Expected: %#v", schema, datum, actual, expected)
+	}
+	native, ok := value.(map[string]interface{})
+	if !ok {
+		t.Fatalf("Bad type for return value: %T", value)
+	}
+	field1, ok := native["field1"]
+	if !ok {
+		t.Fatalf("default value not taken into account: %v", native)
+	}
+	if field1 != datum["field1"] {
+		t.Fatalf("default value is incorrect: Actual:(%T)%v Expected:(%T)%v", field1, field1, datum["field1"], datum["field1"])
+	}
+
 }
 
 func TestRecordFieldTypeHasPrimitiveName(t *testing.T) {
@@ -415,7 +448,7 @@ func TestRecordRecursiveRoundTrip(t *testing.T) {
 	codec, err := goavro.NewCodec(`
 {
   "type": "record",
-  "name": "LongList",                  
+  "name": "LongList",
   "fields" : [
     {"name": "next", "type": ["null", "LongList"], "default": null}
   ]
